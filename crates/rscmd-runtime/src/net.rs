@@ -165,6 +165,45 @@ impl std::error::Error for DownloadError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::error::Error;
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+    use std::thread::{self, JoinHandle};
+
+    /// 起一个只服务一次的本地 HTTP 服务器，返回 URL 与「收到的请求行」。
+    fn serve_once(response: &'static [u8]) -> (String, JoinHandle<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("绑定本地端口");
+        let addr = listener.local_addr().expect("读取本地地址");
+        let handle = thread::spawn(move || {
+            let (mut stream, _) = listener.accept().expect("接受连接");
+            let mut buf = [0u8; 4096];
+            let read = stream.read(&mut buf).expect("读取请求");
+            let request = String::from_utf8_lossy(&buf[..read]).to_string();
+            stream.write_all(response).expect("写响应");
+            request
+        });
+        (format!("http://{addr}/data"), handle)
+    }
+
+    /// 起一个「接受连接但不回包」的服务器，用于超时场景。
+    fn serve_slow(delay: Duration) -> (String, JoinHandle<()>) {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("绑定本地端口");
+        let addr = listener.local_addr().expect("读取本地地址");
+        let handle = thread::spawn(move || {
+            if let Ok((stream, _)) = listener.accept() {
+                thread::sleep(delay);
+                drop(stream);
+            }
+        });
+        (format!("http://{addr}/slow"), handle)
+    }
+
+    fn unused_local_url(scheme: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("绑定本地端口");
+        let addr = listener.local_addr().expect("读取本地地址");
+        drop(listener);
+        format!("{scheme}://{addr}/")
+    }
 
     #[test]
     fn encode_query_converts_pairs() {
@@ -183,6 +222,8 @@ mod tests {
     fn download_rejects_bad_scheme() {
         let err = download("ftp://example.com", Duration::from_secs(1)).unwrap_err();
         assert!(matches!(err, DownloadError::UnsupportedScheme(_)));
+        assert!(err.to_string().contains("不支持"));
+        assert!(err.source().is_none());
     }
 
     #[test]
@@ -193,6 +234,75 @@ mod tests {
         let url = format!("file://{}", path.display());
         let data = download(&url, Duration::from_secs(1)).unwrap();
         assert_eq!(data, b"hello");
+    }
+
+    #[test]
+    fn download_reports_file_url_io_error() {
+        let dir = crate::fs::temp_dir().unwrap();
+        let url = format!("file://{}", dir.path().join("missing.txt").display());
+        let err = download(&url, Duration::from_secs(1)).unwrap_err();
+        assert!(matches!(err, DownloadError::Io(_)));
+        assert!(err.to_string().contains("I/O 错误"));
+        assert!(err.source().is_some());
+    }
+
+    #[test]
+    fn download_http_reads_body() {
+        let (url, handle) =
+            serve_once(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello");
+        let data = download(&url, Duration::from_secs(5)).unwrap();
+        assert_eq!(data, b"hello");
+        let request = handle.join().unwrap();
+        assert!(request.starts_with("GET /data HTTP/1.1"), "{request}");
+        assert!(
+            request.to_ascii_lowercase().contains("user-agent: rscmd/"),
+            "{request}"
+        );
+    }
+
+    #[test]
+    fn download_http_surfaces_status_error() {
+        let (url, _handle) =
+            serve_once(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let err = download(&url, Duration::from_secs(5)).unwrap_err();
+        assert!(matches!(err, DownloadError::Reqwest(_)));
+        assert!(err.to_string().contains("HTTP 错误"));
+        assert!(err.source().is_some());
+    }
+
+    #[test]
+    fn download_http_surfaces_truncated_body() {
+        let (url, _handle) =
+            serve_once(b"HTTP/1.1 200 OK\r\nContent-Length: 10\r\nConnection: close\r\n\r\nhi");
+        let err = download(&url, Duration::from_secs(5)).unwrap_err();
+        assert!(matches!(err, DownloadError::Reqwest(_)));
+    }
+
+    #[test]
+    fn download_http_times_out() {
+        let (url, handle) = serve_slow(Duration::from_millis(600));
+        let started = std::time::Instant::now();
+        let err = download(&url, Duration::from_millis(100)).unwrap_err();
+        assert!(matches!(err, DownloadError::Reqwest(_)));
+        assert!(
+            started.elapsed() < Duration::from_millis(600),
+            "超时应在服务器回包前触发"
+        );
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn download_https_reports_transport_error() {
+        let url = unused_local_url("https");
+        let err = download(&url, Duration::from_millis(300)).unwrap_err();
+        assert!(matches!(err, DownloadError::Reqwest(_)));
+    }
+
+    #[test]
+    fn download_http_reports_connect_error() {
+        let url = unused_local_url("http");
+        let err = download(&url, Duration::from_millis(300)).unwrap_err();
+        assert!(matches!(err, DownloadError::Reqwest(_)));
     }
 
     #[test]
@@ -209,7 +319,7 @@ mod tests {
     fn verify_sha256_accepts_match() {
         verify_sha256(
             b"abc",
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD",
         )
         .unwrap();
     }
@@ -218,6 +328,8 @@ mod tests {
     fn verify_sha256_rejects_mismatch() {
         let err = verify_sha256(b"abc", "deadbeef").unwrap_err();
         assert!(matches!(err, DownloadError::HashMismatch { .. }));
+        assert!(err.to_string().contains("SHA-256 不匹配"));
+        assert!(err.source().is_none());
     }
 
     #[test]
@@ -228,6 +340,41 @@ mod tests {
         let url = format!("file://{}", path.display());
         let err = download_resume(&url, 0, Duration::from_secs(1)).unwrap_err();
         assert!(matches!(err, DownloadError::UnsupportedScheme(_)));
+        assert!(err.to_string().contains("断点续传"));
+    }
+
+    #[test]
+    fn resume_accepts_partial_content() {
+        let (url, handle) = serve_once(
+            b"HTTP/1.1 206 Partial Content\r\nContent-Length: 3\r\nConnection: close\r\n\r\nlo!",
+        );
+        let data = download_resume(&url, 2, Duration::from_secs(5)).unwrap();
+        assert_eq!(data, b"lo!");
+        let request = handle.join().unwrap().to_ascii_lowercase();
+        assert!(request.contains("range: bytes=2-"), "{request}");
+    }
+
+    #[test]
+    fn resume_rejects_unsatisfiable_range() {
+        let (url, _handle) = serve_once(
+            b"HTTP/1.1 416 Range Not Satisfiable\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        );
+        let err = download_resume(&url, 10, Duration::from_secs(5)).unwrap_err();
+        match err {
+            DownloadError::RangeNotSatisfiable(offset) => assert_eq!(offset, 10),
+            other => panic!("期望 RangeNotSatisfiable，实际 {other:?}"),
+        }
+        assert!(err.to_string().contains("offset=10"));
+        assert!(err.source().is_none());
+    }
+
+    #[test]
+    fn resume_requires_partial_content() {
+        let (url, _handle) =
+            serve_once(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nhi");
+        let err = download_resume(&url, 1, Duration::from_secs(5)).unwrap_err();
+        assert!(matches!(err, DownloadError::RangeNotSupported));
+        assert!(err.to_string().contains("不支持 Range"));
     }
 
     /// 需要联网：下载 example.com 首页。失败视为环境限制（如离线），不算测试失败。
