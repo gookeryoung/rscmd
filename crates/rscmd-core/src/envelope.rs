@@ -8,9 +8,14 @@ pub const RESULT_SCHEMA: &str = "rscmd-result/1";
 pub const ERROR_SCHEMA: &str = "rscmd-error/1";
 
 pub fn success(tool: &str, data: Value) -> Value {
+    result(tool, data, true)
+}
+
+/// 结果信封；`ok=false` 表示「检查类命令的结论为不通过」（退出码 5）。
+pub fn result(tool: &str, data: Value, ok: bool) -> Value {
     json!({
         "schema": RESULT_SCHEMA,
-        "ok": true,
+        "ok": ok,
         "tool": tool,
         "data": data,
     })

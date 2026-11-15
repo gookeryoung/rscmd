@@ -111,3 +111,52 @@ fn dash_help_exits_zero() {
     assert_eq!(code, 0);
     assert!(stdout.contains("Usage"), "{stdout}");
 }
+
+#[test]
+fn no_args_prints_help_and_lists_commands() {
+    let (code, stdout, stderr) = run(&[]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(stdout.contains("Commands:"), "{stdout}");
+    assert!(stdout.contains("doctor"), "{stdout}");
+    assert!(stdout.contains("version"), "{stdout}");
+}
+
+#[test]
+fn no_args_json_returns_envelope_with_help() {
+    let (code, stdout, _stderr) = run(&["--json"]);
+    assert_eq!(code, 0);
+    let envelope = parse_json(&stdout);
+    assert_eq!(envelope["ok"], true);
+    let text = envelope["data"]["text"].as_str().unwrap_or_default();
+    assert!(text.contains("Commands:"), "{text}");
+}
+
+#[test]
+fn version_human_is_single_line() {
+    let (code, stdout, _stderr) = run(&["version"]);
+    assert_eq!(code, 0);
+    assert_eq!(
+        stdout.trim(),
+        format!("rscmd {}", env!("CARGO_PKG_VERSION"))
+    );
+}
+
+#[test]
+fn doctor_human_report_passes() {
+    let (code, stdout, _stderr) = run(&["doctor"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("环境自检"), "{stdout}");
+    assert!(stdout.contains("诊断结果:"), "{stdout}");
+    assert!(stdout.contains("[OK  ]"), "{stdout}");
+}
+
+#[test]
+fn doctor_json_has_checks() {
+    let (code, stdout, _stderr) = run(&["--json", "doctor"]);
+    assert_eq!(code, 0);
+    let envelope = parse_json(&stdout);
+    assert_eq!(envelope["ok"], true);
+    let data = &envelope["data"];
+    assert_eq!(data["ok"], true);
+    assert!(data["checks"].as_array().unwrap().len() >= 3);
+}

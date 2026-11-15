@@ -4,8 +4,8 @@ use std::collections::HashSet;
 
 use crate::tool::{PythonExposure, ToolDef};
 
-/// 与工具同名的内建命令；工具不得占用。
-pub const BUILTIN_COMMANDS: &[&str] = &["tools", "info", "schema", "version", "doctor"];
+/// 与工具同名的内建命令；工具不得占用（否则 clap 子命令重复注册）。
+pub const BUILTIN_COMMANDS: &[&str] = &["run", "tools", "info", "schema", "version", "doctor"];
 
 pub struct Registry {
     tools: &'static [ToolDef],

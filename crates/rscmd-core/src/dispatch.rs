@@ -15,9 +15,10 @@ use crate::args::{
     GlobalArgs, GLOBAL_CONFIRM, GLOBAL_DRY_RUN, GLOBAL_JSON, GLOBAL_LIMIT, GLOBAL_QUIET,
     GLOBAL_WORKERS,
 };
+use crate::builtins;
 use crate::ctx::ToolCtx;
 use crate::errors::RscmdError;
-use crate::registry::BUILTIN_COMMANDS;
+use crate::registry::Registry;
 use crate::tool::{meta_json, ToolDef};
 
 pub struct Outcome {
@@ -30,6 +31,9 @@ pub struct Outcome {
 impl Outcome {
     pub fn exit_code(&self) -> i32 {
         match &self.result {
+            Ok(data) if builtins::check_failed(&self.tool, data) => {
+                crate::errors::ErrorKind::CheckFailed.exit_code()
+            }
             Ok(_) => 0,
             Err(err) => err.exit_code(),
         }
@@ -76,13 +80,15 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
 fn root_command(tools: &'static [ToolDef]) -> Command {
     let mut root = Command::new("rscmd")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("面向小模型调用的工具集")
         .disable_help_subcommand(true)
         .subcommand_required(false) // 无参数 → 显示帮助（默认行为）
         .arg_required_else_help(false);
 
     // 全局参数统一由 GlobalArgs derive 注入，id 带 `_rscmd_` 前缀避免与工具参数冲突。
-    root = GlobalArgs::augment_args(root);
+    // derive 会把 GlobalArgs 的文档注释当作 about，因此注入后重新设置根命令简介。
+    root = GlobalArgs::augment_args(root)
+        .about("面向小模型调用的工具集")
+        .after_help("示例:\n  rscmd run case --mode snake HelloWorld\n  rscmd doctor\n  rscmd version --json");
 
     // 1. 平级一级命令：run / doctor / version / info（短别名 r/d/v/i）
     let mut run = Command::new("run")
@@ -137,12 +143,13 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
     let (name, sub) = match matches.subcommand() {
         Some(pair) => pair,
         None => {
-            // rscmd 不带任何参数 → 显示帮助（正常输出，exit=0）
+            // rscmd 不带任何参数 → 输出完整帮助（正常输出，exit=0）。
+            // 帮助文本经 Outcome 返回，保证 CLI / Python 绑定 / --json 行为一致。
             let mut cmd = root_command(tools);
-            let _ = cmd.print_help();
+            let help = cmd.render_help().to_string();
             return Outcome {
                 tool: String::new(),
-                result: Ok(json!({ "text": "" })),
+                result: Ok(json!({ "text": help })),
                 json: matches.get_flag(GLOBAL_JSON),
                 quiet: matches.get_flag(GLOBAL_QUIET),
             };
@@ -206,17 +213,11 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
         "schema" => Ok(Value::Array(
             tools.iter().map(meta_json).collect::<Vec<_>>(),
         )),
-        "version" => Ok(json!({
-            "name": "rscmd",
-            "version": env!("CARGO_PKG_VERSION"),
-        })),
-        "doctor" => Ok(json!({
-            "version": env!("CARGO_PKG_VERSION"),
-            "os": std::env::consts::OS,
-            "arch": std::env::consts::ARCH,
-            "tool_count": tools.len(),
-            "builtins": BUILTIN_COMMANDS,
-        })),
+        "version" => Ok(builtins::version_data()),
+        "doctor" => Ok(builtins::doctor_data(
+            tools,
+            Registry::new(tools).validate(),
+        )),
         _ => invoke_tool(tools, name, sub, &mut ctx),
     };
 

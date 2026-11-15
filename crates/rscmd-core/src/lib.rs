@@ -3,6 +3,7 @@
 //! 本 crate 不依赖任何具体工具或基础件，只依赖标准库与少量契约依赖。
 
 pub mod args;
+pub mod builtins;
 pub mod ctx;
 pub mod dispatch;
 pub mod envelope;

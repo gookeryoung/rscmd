@@ -35,11 +35,11 @@ pub struct GlobalArgs {
     pub confirm: bool,
 
     /// 并行度，0 表示自动
-    #[arg(long = "workers", global = true, id = GLOBAL_WORKERS, default_value_t = 0)]
+    #[arg(long = "workers", global = true, id = GLOBAL_WORKERS, value_name = "N", default_value_t = 0)]
     pub workers: usize,
 
     /// 结果条数上限，0 表示不限制
-    #[arg(long = "limit", global = true, id = GLOBAL_LIMIT, default_value_t = 0)]
+    #[arg(long = "limit", global = true, id = GLOBAL_LIMIT, value_name = "N", default_value_t = 0)]
     pub limit: usize,
 }
 

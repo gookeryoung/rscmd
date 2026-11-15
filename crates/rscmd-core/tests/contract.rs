@@ -190,6 +190,31 @@ fn registry_rejects_long_summary() {
 }
 
 #[test]
+fn registry_rejects_builtin_command_name() {
+    static RUN: ToolMeta = ToolMeta {
+        name: "run",
+        aliases: &[],
+        summary: "占用内建命令名",
+        side_effects: SideEffects::None,
+        gui: false,
+        python: PythonExposure::Hidden,
+        examples: &["rscmd run"],
+    };
+    static RUN_TOOLS: [ToolDef; 1] = [ToolDef {
+        meta: &RUN,
+        build: build_beta,
+        run: run_beta,
+        run_json: None,
+        schema: None,
+    }];
+    let problems = Registry::new(&RUN_TOOLS).validate().unwrap_err();
+    assert!(
+        problems.iter().any(|item| item.contains("冲突")),
+        "{problems:?}"
+    );
+}
+
+#[test]
 fn error_kinds_map_to_exit_codes() {
     let cases = [
         (ErrorKind::Runtime, "runtime", 1),
@@ -451,4 +476,84 @@ fn dispatch_respects_raw_json_on_parse_error() {
     let out = dispatch(&TOOLS, &argv(&["--json", "--nope"]));
     assert_eq!(out.exit_code(), 2);
     assert!(out.json);
+}
+
+#[test]
+fn doctor_data_reports_checks_and_environment() {
+    let data = rscmd_core::builtins::doctor_data(&TOOLS, Registry::new(&TOOLS).validate());
+    assert_eq!(data["ok"], true);
+    assert_eq!(data["total"], 3);
+    assert_eq!(data["passed"], 3);
+    assert_eq!(data["failed"], 0);
+    assert_eq!(data["tool_count"], 2);
+    assert_eq!(data["checks"].as_array().unwrap().len(), 3);
+    assert!(data["checks"][0]["detail"]
+        .as_str()
+        .unwrap()
+        .contains("2 个工具"));
+}
+
+#[test]
+fn doctor_flags_broken_registry_and_empty_tools() {
+    let data = rscmd_core::builtins::doctor_data(&TOOLS, Err(vec!["别名冲突".to_string()]));
+    assert_eq!(data["ok"], false);
+    assert_eq!(data["failed"], 1);
+    assert_eq!(data["checks"][0]["fix"], "别名冲突");
+    assert!(rscmd_core::builtins::check_failed("doctor", &data));
+    assert!(!rscmd_core::builtins::check_failed("version", &data));
+
+    let out = Outcome {
+        tool: "doctor".to_string(),
+        result: Ok(data),
+        json: false,
+        quiet: false,
+    };
+    assert_eq!(out.exit_code(), 5);
+
+    let empty = rscmd_core::builtins::doctor_data(&[], Ok(()));
+    assert_eq!(empty["ok"], false);
+    assert_eq!(empty["checks"][1]["item"], "工具数量");
+    assert_eq!(empty["checks"][1]["ok"], false);
+}
+
+#[test]
+fn render_builtin_human_forms() {
+    let version = rscmd_core::builtins::version_data();
+    let (stdout, stderr) = render(&outcome("version", Ok(version), false));
+    assert_eq!(stdout, format!("rscmd {}\n", env!("CARGO_PKG_VERSION")));
+    assert!(stderr.is_empty());
+
+    let data = rscmd_core::builtins::doctor_data(&TOOLS, Registry::new(&TOOLS).validate());
+    let (stdout, stderr) = render(&outcome("doctor", Ok(data), false));
+    assert!(stdout.contains("诊断结果: 3/3 全部通过"), "{stdout}");
+    assert!(stdout.contains("[OK  ]"), "{stdout}");
+    assert!(stderr.is_empty());
+}
+
+#[test]
+fn doctor_text_handles_sparse_data() {
+    let text = rscmd_core::builtins::doctor_text(&json!({
+        "checks": [{"item": "x", "ok": false}]
+    }));
+    assert!(text.contains("unknown"), "{text}");
+    assert!(text.contains("[FAIL] x: "), "{text}");
+    assert!(!text.contains("修复:"), "{text}");
+    assert!(text.contains("诊断结果: 0/0"), "{text}");
+}
+
+#[test]
+fn doctor_failure_is_check_failed_not_runtime_error() {
+    let bad = rscmd_core::builtins::doctor_data(&TOOLS, Err(vec!["x".to_string()]));
+
+    let (stdout, stderr) = render(&outcome("doctor", Ok(bad.clone()), false));
+    assert!(stdout.contains("[FAIL]"), "{stdout}");
+    assert!(stdout.contains("修复:"), "{stdout}");
+    assert!(stderr.is_empty());
+
+    // JSON 模式：结论性失败仍写 stdout 信封，不写 stderr 错误体。
+    let (stdout, stderr) = render(&outcome("doctor", Ok(bad), true));
+    let envelope: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(envelope["schema"], "rscmd-result/1");
+    assert_eq!(envelope["ok"], false);
+    assert!(stderr.is_empty());
 }

@@ -2,6 +2,7 @@
 
 use serde_json::Value;
 
+use crate::builtins;
 use crate::dispatch::Outcome;
 use crate::envelope;
 use crate::errors::RscmdError;
@@ -11,12 +12,13 @@ pub fn render(outcome: &Outcome) -> (String, String) {
     match &outcome.result {
         Ok(data) => {
             if outcome.json {
-                let env = envelope::success(&outcome.tool, data.clone());
+                let ok = !builtins::check_failed(&outcome.tool, data);
+                let env = envelope::result(&outcome.tool, data.clone(), ok);
                 (format!("{}\n", compact(&env)), String::new())
             } else if outcome.quiet {
                 (String::new(), String::new())
             } else {
-                (human_success(data), String::new())
+                (human_success(&outcome.tool, data), String::new())
             }
         }
         Err(err) => {
@@ -34,7 +36,13 @@ fn compact(value: &Value) -> String {
     serde_json::to_string(value).unwrap_or_else(|_| "{\"ok\":false}".to_string())
 }
 
-fn human_success(data: &Value) -> String {
+fn human_success(tool: &str, data: &Value) -> String {
+    // 内建命令有专门的人读形态，其余沿用 text / json / pretty 回退。
+    match tool {
+        "version" => return format!("{}\n", builtins::version_text(data)),
+        "doctor" => return builtins::doctor_text(data),
+        _ => {}
+    }
     if let Some(object) = data.as_object() {
         if let Some(text) = object.get("text").and_then(Value::as_str) {
             return format!("{text}\n");
