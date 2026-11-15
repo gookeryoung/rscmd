@@ -1,0 +1,23 @@
+[package]
+name = "rscmd-py"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+name = "_native"
+crate-type = ["cdylib"]
+
+[features]
+default = ["python"]
+python = []
+all-tools = ["rscmd-tools/all-tools"]
+
+[dependencies]
+rscmd-core = { workspace = true }
+rscmd-tools = { workspace = true }
+pyo3 = { workspace = true }
+pythonize = { workspace = true }
+serde_json = { workspace = true }

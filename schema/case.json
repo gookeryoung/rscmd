@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CaseArgs",
+  "type": "object",
+  "properties": {
+    "mode": {
+      "description": "转换目标：snake/camel/pascal/kebab",
+      "type": "string",
+      "default": "snake"
+    },
+    "text": {
+      "description": "待转换的字符串",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}

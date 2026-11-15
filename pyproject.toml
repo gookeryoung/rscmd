@@ -1,0 +1,25 @@
+[build-system]
+requires = ["maturin>=1.7,<2"]
+build-backend = "maturin"
+
+[project]
+name = "rscmd"
+dynamic = ["version"]
+description = "面向小模型调用的 Rust 工具集"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: 3",
+]
+
+[project.scripts]
+rscmd = "rscmd.__main__:main"
+
+[tool.maturin]
+manifest-path = "crates/rscmd-py/Cargo.toml"
+python-source = "python"
+module-name = "rscmd._native"
+bindings = "pyo3"
+features = ["python", "all-tools"]
+strip = true

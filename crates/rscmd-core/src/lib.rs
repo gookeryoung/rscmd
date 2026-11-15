@@ -1,0 +1,20 @@
+//! 工具契约、注册表、统一信封与调度。
+//!
+//! 本 crate 不依赖任何具体工具或基础件，只依赖标准库与少量契约依赖。
+
+pub mod ctx;
+pub mod dispatch;
+pub mod envelope;
+pub mod errors;
+pub mod registry;
+pub mod render;
+pub mod tool;
+
+pub use ctx::ToolCtx;
+pub use dispatch::{dispatch, Outcome};
+pub use errors::{ErrorKind, RscmdError};
+pub use registry::Registry;
+pub use render::render;
+pub use tool::{
+    command_for, meta_json, meta_schema, PythonExposure, SideEffects, ToolDef, ToolMeta,
+};

@@ -1,0 +1,31 @@
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.78"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+rscmd-core = { path = "crates/rscmd-core" }
+rscmd-runtime = { path = "crates/rscmd-runtime" }
+rscmd-tools = { path = "crates/rscmd-tools" }
+rscmd-tool-text = { path = "crates/rscmd-tool-text" }
+rscmd-tool-data = { path = "crates/rscmd-tool-data" }
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pyo3 = { version = "0.24", features = ["extension-module", "abi3-py310"] }
+pythonize = "0.24"
+rayon = "1"
+urlencoding = "2"
+schemars = { version = "0.9", features = ["derive"] }
+
+[profile.release]
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"

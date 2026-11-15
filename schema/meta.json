@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ToolMeta",
+  "type": "object",
+  "properties": {
+    "aliases": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "examples": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gui": {
+      "type": "boolean"
+    },
+    "name": {
+      "type": "string"
+    },
+    "python": {
+      "$ref": "#/$defs/PythonExposure"
+    },
+    "side_effects": {
+      "$ref": "#/$defs/SideEffects"
+    },
+    "summary": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "name",
+    "aliases",
+    "summary",
+    "side_effects",
+    "gui",
+    "python",
+    "examples"
+  ],
+  "$defs": {
+    "PythonExposure": {
+      "type": "string",
+      "enum": [
+        "hidden",
+        "argv_only",
+        "structured"
+      ]
+    },
+    "SideEffects": {
+      "type": "string",
+      "enum": [
+        "none",
+        "read",
+        "write",
+        "network",
+        "destructive"
+      ]
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "JsonFmtArgs",
+  "type": "object",
+  "properties": {
+    "json": {
+      "description": "待处理的 JSON 文本",
+      "type": "string"
+    },
+    "minify": {
+      "description": "压缩为单行",
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "json"
+  ]
+}

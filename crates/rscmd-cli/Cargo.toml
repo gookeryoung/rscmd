@@ -1,0 +1,18 @@
+[package]
+name = "rscmd-cli"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "rscmd"
+path = "src/main.rs"
+
+[dependencies]
+rscmd-core = { workspace = true }
+rscmd-tools = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
