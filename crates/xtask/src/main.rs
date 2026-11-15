@@ -51,7 +51,7 @@ fn print_help() {
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
          \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
          \x20 bench           构建 release 并跑启动时间基准回归\n\
-         \x20 release-preflight 发布前本地全量预检（check + bench + wheel-smoke）"
+         \x20 release-preflight 发布前本地全量预检（check + 覆盖率 + bench + wheel-smoke）"
     );
 }
 
@@ -877,13 +877,14 @@ fn percentile(sorted: &[u128], p: u8) -> u128 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
-/// 发布前全量预检：check-fast → test → py-check → bench → wheel-smoke。
+/// 发布前全量预检：check-fast → test → py-check → 覆盖率 → bench → wheel-smoke。
 /// 任一步骤失败立即中止，避免在有问题的状态下继续发布。
 pub fn release_preflight() -> Result<()> {
     println!("=== release-preflight 开始 ===");
     check_fast()?;
     run_cargo(&["test", "--workspace"])?;
     py_check()?;
+    check_cov()?;
     bench()?;
     wheel_smoke()?;
     println!("=== release-preflight 通过，可以发布 ===");
