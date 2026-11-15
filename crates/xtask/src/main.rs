@@ -293,9 +293,11 @@ fn schema_check(write: bool) -> Result<()> {
     let schema_dir = workspace_root().join("schema");
     let tools = rscmd_tools::tools();
 
-    // 1. 生成 meta schema
+    // 1. 生成 meta + global schema
     let meta_path = schema_dir.join("meta.json");
     let meta_schema = rscmd_core::meta_schema();
+    let global_path = schema_dir.join("global.json");
+    let global_schema = rscmd_core::global_schema();
 
     // 2. 生成每个工具的参数 schema
     let mut tool_schemas = Vec::with_capacity(tools.len());
@@ -313,6 +315,8 @@ fn schema_check(write: bool) -> Result<()> {
         fs::create_dir_all(&schema_dir).map_err(|err| err.to_string())?;
         fs::write(&meta_path, &meta_schema).map_err(|err| err.to_string())?;
         println!("已生成 {}", meta_path.display());
+        fs::write(&global_path, &global_schema).map_err(|err| err.to_string())?;
+        println!("已生成 {}", global_path.display());
         for (name, schema) in &tool_schemas {
             let path = schema_dir.join(format!("{name}.json"));
             fs::write(&path, schema).map_err(|err| err.to_string())?;
@@ -321,36 +325,20 @@ fn schema_check(write: bool) -> Result<()> {
         return Ok(());
     }
 
-    // 校验：meta schema
-    let actual_meta = fs::read_to_string(&meta_path).map_err(|_| {
-        format!(
-            "缺少 {}，请运行 `cargo xtask gen-schema`",
-            meta_path.display()
-        )
-    })?;
-    if actual_meta != meta_schema {
-        return Err(format!(
-            "{} 已过期，请运行 `cargo xtask gen-schema`",
-            meta_path.display()
-        ));
-    }
+    // 校验：meta / global schema
+    verify_generated(&meta_path, &meta_schema)?;
+    verify_generated(&global_path, &global_schema)?;
 
     // 校验：每个工具 schema
     for (name, expected) in &tool_schemas {
         let path = schema_dir.join(format!("{name}.json"));
-        let actual = fs::read_to_string(&path)
-            .map_err(|_| format!("缺少 {}，请运行 `cargo xtask gen-schema`", path.display()))?;
-        if actual != *expected {
-            return Err(format!(
-                "{} 已过期，请运行 `cargo xtask gen-schema`",
-                path.display()
-            ));
-        }
+        verify_generated(&path, expected)?;
     }
 
     // 校验：schema 目录下没有多余文件
     let mut expected_names = BTreeSet::new();
     expected_names.insert("meta.json".to_string());
+    expected_names.insert("global.json".to_string());
     for (name, _) in &tool_schemas {
         expected_names.insert(format!("{name}.json"));
     }
@@ -370,9 +358,21 @@ fn schema_check(write: bool) -> Result<()> {
     }
 
     println!(
-        "schema-check 通过：{} 个工具 + meta schema 都是最新生成物",
+        "schema-check 通过：{} 个工具 + meta + global schema 都是最新生成物",
         tool_schemas.len()
     );
+    Ok(())
+}
+
+fn verify_generated(path: &Path, expected: &str) -> Result<()> {
+    let actual = fs::read_to_string(path)
+        .map_err(|_| format!("缺少 {}，请运行 `cargo xtask gen-schema`", path.display()))?;
+    if actual != expected {
+        return Err(format!(
+            "{} 已过期，请运行 `cargo xtask gen-schema`",
+            path.display()
+        ));
+    }
     Ok(())
 }
 

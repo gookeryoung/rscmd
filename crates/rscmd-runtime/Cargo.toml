@@ -11,3 +11,4 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 rayon = { workspace = true }
 urlencoding = { workspace = true }
+reqwest = { workspace = true }

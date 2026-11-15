@@ -1,4 +1,4 @@
-//! 网络基础件：URL 编码/解码、简易阻塞式下载器（P1 占位，P2 补完整 HTTP 客户端）。
+//! 网络基础件：URL 编码/解码、阻塞式下载器（file:// + http(s)://）。
 
 use std::time::Duration;
 
@@ -27,41 +27,69 @@ pub fn decode(s: &str) -> Result<String, std::string::FromUtf8Error> {
     urlencoding::decode(s).map(|cow| cow.into_owned())
 }
 
-/// 简易阻塞式下载器（P1 占位）。
+/// 阻塞式下载器。根据 URL scheme 自动选择传输层：
+/// - `file://` → 本地文件读取
+/// - `http://` / `https://` → reqwest blocking GET，附带超时与 30s 默认连接超时
 ///
-/// P1 不引入 reqwest/ureq 等 HTTP 客户端；该函数当前只对 `file://` 形式的 URL 有效，
-/// 对 `http://` / `https://` 返回 [`NotImplemented`] 错误。
-/// 真正的 HTTP 客户端（超时、重试、下载校验、流式）在 P2 引入。
+/// `timeout` 同时作用于连接建立与整个请求的 read 阶段。
 pub fn download(url: &str, timeout: Duration) -> Result<Vec<u8>, DownloadError> {
-    if !url.starts_with("file://") {
-        return Err(DownloadError::NotImplemented(
-            "HTTP/HTTPS 下载将在 P2 用 reqwest 实现；当前仅支持 file://".to_string(),
-        ));
+    let lower = url.to_ascii_lowercase();
+    if let Some(path) = url.strip_prefix("file://") {
+        let path = path.trim_start_matches('/');
+        return std::fs::read(path).map_err(DownloadError::Io);
     }
-    let path = url
-        .strip_prefix("file://")
-        .unwrap_or(url)
-        .trim_start_matches('/');
-    let _ = timeout; // file:// 读文件不超时（std::fs 本身不支持 timeout）
-    std::fs::read(path).map_err(DownloadError::Io)
+    if lower.starts_with("http://") || lower.starts_with("https://") {
+        return http_download(url, timeout);
+    }
+    Err(DownloadError::UnsupportedScheme(
+        "仅支持 file://、http://、https://".to_string(),
+    ))
+}
+
+fn http_download(url: &str, timeout: Duration) -> Result<Vec<u8>, DownloadError> {
+    let client = reqwest::blocking::Client::builder()
+        .connect_timeout(timeout.min(Duration::from_secs(30)))
+        .timeout(timeout)
+        .user_agent(concat!("rscmd/", env!("CARGO_PKG_VERSION")))
+        .build()
+        .map_err(DownloadError::Reqwest)?;
+
+    let resp = client
+        .get(url)
+        .send()
+        .and_then(|r| r.error_for_status())
+        .map_err(DownloadError::Reqwest)?;
+
+    let bytes = resp.bytes().map_err(DownloadError::Reqwest)?;
+    Ok(bytes.to_vec())
 }
 
 #[derive(Debug)]
 pub enum DownloadError {
     Io(std::io::Error),
-    NotImplemented(String),
+    Reqwest(reqwest::Error),
+    UnsupportedScheme(String),
 }
 
 impl std::fmt::Display for DownloadError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             DownloadError::Io(err) => write!(f, "I/O 错误: {err}"),
-            DownloadError::NotImplemented(msg) => write!(f, "未实现: {msg}"),
+            DownloadError::Reqwest(err) => write!(f, "HTTP 错误: {err}"),
+            DownloadError::UnsupportedScheme(msg) => write!(f, "不支持的 URL scheme: {msg}"),
         }
     }
 }
 
-impl std::error::Error for DownloadError {}
+impl std::error::Error for DownloadError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            DownloadError::Io(err) => Some(err),
+            DownloadError::Reqwest(err) => Some(err),
+            DownloadError::UnsupportedScheme(_) => None,
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -81,9 +109,9 @@ mod tests {
     }
 
     #[test]
-    fn download_rejects_http() {
-        let err = download("https://example.com", Duration::from_secs(1)).unwrap_err();
-        assert!(matches!(err, DownloadError::NotImplemented(_)));
+    fn download_rejects_bad_scheme() {
+        let err = download("ftp://example.com", Duration::from_secs(1)).unwrap_err();
+        assert!(matches!(err, DownloadError::UnsupportedScheme(_)));
     }
 
     #[test]
@@ -94,5 +122,15 @@ mod tests {
         let url = format!("file://{}", path.display());
         let data = download(&url, Duration::from_secs(1)).unwrap();
         assert_eq!(data, b"hello");
+    }
+
+    /// 需要联网：下载 example.com 首页。失败视为环境限制（如离线），不算测试失败。
+    #[test]
+    #[ignore = "需要联网环境"]
+    fn download_http_works() {
+        let data = download("https://example.com", Duration::from_secs(10)).unwrap();
+        assert!(!data.is_empty());
+        let text = String::from_utf8_lossy(&data);
+        assert!(text.contains("Example Domain"));
     }
 }

@@ -2,6 +2,7 @@
 //!
 //! 本 crate 不依赖任何具体工具或基础件，只依赖标准库与少量契约依赖。
 
+pub mod args;
 pub mod ctx;
 pub mod dispatch;
 pub mod envelope;
@@ -10,6 +11,7 @@ pub mod registry;
 pub mod render;
 pub mod tool;
 
+pub use args::{global_schema, GlobalArgs};
 pub use ctx::ToolCtx;
 pub use dispatch::{dispatch, Outcome};
 pub use errors::{ErrorKind, RscmdError};

@@ -161,8 +161,7 @@ mod tests {
         let (prog, args) = sleep_cmd(2000);
         let mut cmd = Command::new(prog);
         cmd.args(&args);
-        let err = run(&mut cmd, Duration::from_millis(100), 1024)
-            .expect_err("应在 100ms 内超时");
+        let err = run(&mut cmd, Duration::from_millis(100), 1024).expect_err("应在 100ms 内超时");
         assert_eq!(err.kind(), io::ErrorKind::TimedOut);
     }
 

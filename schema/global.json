@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "GlobalArgs",
+  "description": "CLI 全局参数（所有工具子命令共享）。",
+  "type": "object",
+  "properties": {
+    "confirm": {
+      "description": "确认执行有副作用的操作",
+      "type": "boolean"
+    },
+    "dry_run": {
+      "description": "仅预演，不产生副作用",
+      "type": "boolean"
+    },
+    "json": {
+      "description": "以 JSON 信封输出结果",
+      "type": "boolean"
+    },
+    "limit": {
+      "description": "结果条数上限，0 表示不限制",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+    },
+    "quiet": {
+      "description": "人读模式下不输出成功结果",
+      "type": "boolean"
+    },
+    "workers": {
+      "description": "并行度，0 表示自动",
+      "type": "integer",
+      "format": "uint",
+      "minimum": 0
+    }
+  },
+  "required": [
+    "json",
+    "quiet",
+    "dry_run",
+    "confirm",
+    "workers",
+    "limit"
+  ]
+}
