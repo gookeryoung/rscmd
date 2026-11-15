@@ -23,6 +23,7 @@ fn main() {
         "wheel-smoke" => wheel_smoke(),
         "bench" => bench(),
         "release-preflight" => release_preflight(),
+        "version-check" => version_check(),
         _ => {
             print_help();
             Ok(())
@@ -51,7 +52,8 @@ fn print_help() {
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
          \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
          \x20 bench           构建 release 并跑启动时间基准回归\n\
-         \x20 release-preflight 发布前本地全量预检（check + 覆盖率 + bench + wheel-smoke）"
+         \x20 version-check   校验 tag / Cargo / wheel 版本一致（tag 取 RSCMD_RELEASE_TAG 或 GITHUB_REF_NAME）\n\
+         \x20 release-preflight 发布前本地全量预检（check + 覆盖率 + bench + wheel-smoke + 版本校验）"
     );
 }
 
@@ -720,7 +722,7 @@ fn wheel_smoke() -> Result<()> {
     }
 
     let script = "import rscmd\n\
-                  assert rscmd.__version__ == '0.1.0', rscmd.__version__\n\
+                  assert rscmd.__version__ == '__EXPECTED_VERSION__', rscmd.__version__\n\
                   assert rscmd.invoke('case', {'text': 'HelloWorld', 'mode': 'snake'})['text'] == 'hello_world'\n\
                   try:\n\
                   \x20   rscmd.invoke('json_fmt', {'json': '{'})\n\
@@ -729,6 +731,7 @@ fn wheel_smoke() -> Result<()> {
                   else:\n\
                   \x20   raise AssertionError('json_fmt 应报错')\n\
                   print('wheel smoke 通过')";
+    let script = script.replace("__EXPECTED_VERSION__", env!("CARGO_PKG_VERSION"));
     println!("$ python -c <wheel smoke>");
     let smoke = Command::new(&python)
         .arg("-c")
@@ -777,6 +780,85 @@ fn newest_wheel(dir: &Path) -> Option<PathBuf> {
         .filter_map(|entry| entry.ok().map(|entry| entry.path()))
         .filter(|path| path.extension().and_then(|ext| ext.to_str()) == Some("whl"))
         .max_by_key(|path| fs::metadata(path).and_then(|meta| meta.modified()).ok())
+}
+
+/// 版本一致性校验：tag（可选）与 Cargo workspace 版本一致；`dist/*.whl` 文件名版本一致。
+fn version_check() -> Result<()> {
+    let root = workspace_root();
+    let expected = workspace_version(&root)?;
+
+    let tag = std::env::var("RSCMD_RELEASE_TAG")
+        .ok()
+        .or_else(|| std::env::var("GITHUB_REF_NAME").ok())
+        .filter(|tag| !tag.trim().is_empty());
+    match tag.as_deref() {
+        Some(tag) => {
+            let trimmed = tag.trim();
+            let actual = trimmed.strip_prefix('v').unwrap_or(trimmed);
+            if actual != expected {
+                return Err(format!("tag {trimmed} 与 Cargo 版本 {expected} 不一致"));
+            }
+            println!("tag 校验通过: {trimmed}");
+        }
+        None => println!("跳过 tag 校验：未设置 RSCMD_RELEASE_TAG 或 GITHUB_REF_NAME"),
+    }
+
+    let dist = root.join("dist");
+    let mut wheels = 0usize;
+    if dist.is_dir() {
+        let mut names: Vec<String> = fs::read_dir(&dist)
+            .map_err(|err| format!("读取 {} 失败: {err}", dist.display()))?
+            .filter_map(|entry| entry.ok())
+            .map(|entry| entry.file_name().to_string_lossy().into_owned())
+            .filter(|name| name.ends_with(".whl"))
+            .collect();
+        names.sort();
+        for name in &names {
+            let version = wheel_version(name)
+                .ok_or_else(|| format!("无法从 wheel 文件名解析版本: {name}"))?;
+            if version != expected {
+                return Err(format!(
+                    "wheel {name} 版本 {version} 与 Cargo 版本 {expected} 不一致"
+                ));
+            }
+            wheels += 1;
+        }
+    }
+    println!("版本校验通过: Cargo {expected}，wheel {wheels} 个");
+    Ok(())
+}
+
+/// 读取根 `Cargo.toml` 中 `[workspace.package] version`。
+fn workspace_version(root: &Path) -> Result<String> {
+    let text = fs::read_to_string(root.join("Cargo.toml"))
+        .map_err(|err| format!("读取 Cargo.toml 失败: {err}"))?;
+    let mut in_package = false;
+    for line in text.lines() {
+        let line = line.trim();
+        if line.starts_with('[') {
+            in_package = line == "[workspace.package]";
+            continue;
+        }
+        if !in_package {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("version") {
+            if let Some(value) = rest.trim_start().strip_prefix('=') {
+                let value = value.trim().trim_matches('"');
+                if !value.is_empty() {
+                    return Ok(value.to_string());
+                }
+            }
+        }
+    }
+    Err("Cargo.toml 缺少 [workspace.package].version".to_string())
+}
+
+/// 从 `rscmd-0.1.0-cp310-abi3-win_amd64.whl` 中取出 `0.1.0`。
+fn wheel_version(file_name: &str) -> Option<&str> {
+    let rest = file_name.strip_prefix("rscmd-")?;
+    let (version, _) = rest.split_once('-')?;
+    (!version.is_empty()).then_some(version)
 }
 
 fn run_cargo(args: &[&str]) -> Result<()> {
@@ -877,7 +959,7 @@ fn percentile(sorted: &[u128], p: u8) -> u128 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
-/// 发布前全量预检：check-fast → test → py-check → 覆盖率 → bench → wheel-smoke。
+/// 发布前全量预检：check-fast → test → py-check → 覆盖率 → bench → wheel-smoke → 版本校验。
 /// 任一步骤失败立即中止，避免在有问题的状态下继续发布。
 pub fn release_preflight() -> Result<()> {
     println!("=== release-preflight 开始 ===");
@@ -887,6 +969,30 @@ pub fn release_preflight() -> Result<()> {
     check_cov()?;
     bench()?;
     wheel_smoke()?;
+    version_check()?;
     println!("=== release-preflight 通过，可以发布 ===");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::wheel_version;
+
+    #[test]
+    fn parses_wheel_version() {
+        assert_eq!(
+            wheel_version("rscmd-0.1.0-cp310-abi3-win_amd64.whl"),
+            Some("0.1.0")
+        );
+        assert_eq!(
+            wheel_version("rscmd-2.0.0-cp310-abi3-manylinux_2_17_x86_64.whl"),
+            Some("2.0.0")
+        );
+    }
+
+    #[test]
+    fn rejects_foreign_wheel_name() {
+        assert_eq!(wheel_version("other-0.1.0-py3-none-any.whl"), None);
+        assert_eq!(wheel_version("rscmd.whl"), None);
+    }
 }

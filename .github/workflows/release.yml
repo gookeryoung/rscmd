@@ -68,14 +68,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: rustup component add llvm-tools-preview
       - run: cargo install cargo-llvm-cov --quiet
-      - run: cargo run -q -p xtask -- release-preflight
+      - run: python -m venv .venv
+      - run: .venv/bin/pip install --upgrade pip maturin
       - uses: actions/download-artifact@v4
         with:
           pattern: wheel-*
           merge-multiple: true
           path: dist
+      - run: cargo run -q -p xtask -- release-preflight
+        env:
+          RSCMD_RELEASE_TAG: ${{ github.ref_name }}
       - run: pip install twine
       - run: twine upload dist/*.whl
         env:
