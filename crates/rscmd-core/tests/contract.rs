@@ -322,6 +322,43 @@ fn dispatch_runs_tool_and_alias() {
 }
 
 #[test]
+fn dispatch_run_subcommand_runs_tool() {
+    // 新风格：rscmd run <工具>
+    let out = dispatch(&TOOLS, &argv(&["run", "alpha", "hello"]));
+    assert_eq!(out.exit_code(), 0);
+    assert_eq!(out.tool, "alpha");
+    assert_eq!(out.result.unwrap()["text"], "hello");
+
+    // run 短别名 r
+    let out = dispatch(&TOOLS, &argv(&["r", "alpha", "hello"]));
+    assert_eq!(out.exit_code(), 0);
+    assert_eq!(out.tool, "alpha");
+}
+
+#[test]
+fn dispatch_short_aliases_for_top_level() {
+    // version 短别名 v
+    let out = dispatch(&TOOLS, &argv(&["v"]));
+    assert_eq!(out.exit_code(), 0);
+    assert_eq!(out.tool, "version");
+    assert!(out.result.unwrap()["version"]
+        .as_str()
+        .unwrap()
+        .contains("0.1"));
+
+    // doctor 短别名 d
+    let out = dispatch(&TOOLS, &argv(&["d"]));
+    assert_eq!(out.exit_code(), 0);
+    assert_eq!(out.tool, "doctor");
+
+    // info 短别名 i
+    let out = dispatch(&TOOLS, &argv(&["i", "alpha"]));
+    assert_eq!(out.exit_code(), 0);
+    assert_eq!(out.tool, "info");
+    assert_eq!(out.result.unwrap()["name"], "alpha");
+}
+
+#[test]
 fn dispatch_global_flags_after_subcommand() {
     let out = dispatch(
         &TOOLS,
@@ -371,13 +408,20 @@ fn dispatch_builtins() {
 
 #[test]
 fn dispatch_reports_missing_and_unknown_commands() {
+    // 无参数 → 正常帮助（exit=0），不是 USAGE 错误
     let out = dispatch(&TOOLS, &argv(&[]));
-    assert_eq!(out.exit_code(), 2);
-    assert_eq!(out.result.unwrap_err().code, "MISSING_COMMAND");
+    assert_eq!(out.exit_code(), 0);
+    assert!(out.result.is_ok());
 
+    // 未知命令 → USAGE 错误（exit=2）
     let out = dispatch(&TOOLS, &argv(&["nope"]));
     assert_eq!(out.exit_code(), 2);
     assert_eq!(out.result.unwrap_err().code, "USAGE");
+
+    // `rscmd run` 不带工具名 → USAGE 错误
+    let out = dispatch(&TOOLS, &argv(&["run"]));
+    assert_eq!(out.exit_code(), 2);
+    assert_eq!(out.result.unwrap_err().code, "MISSING_TOOL");
 }
 
 #[test]

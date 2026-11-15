@@ -22,6 +22,7 @@ fn main() {
         "check-cov" => check_cov(),
         "wheel-smoke" => wheel_smoke(),
         "bench" => bench(),
+        "release-preflight" => release_preflight(),
         _ => {
             print_help();
             Ok(())
@@ -49,7 +50,8 @@ fn print_help() {
          \x20 check           check-fast + 测试 + Python 测试（若存在 .venv）\n\
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
          \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
-         \x20 bench           构建 release 并跑启动时间基准回归"
+         \x20 bench           构建 release 并跑启动时间基准回归\n\
+         \x20 release-preflight 发布前本地全量预检（check + bench + wheel-smoke）"
     );
 }
 
@@ -266,28 +268,158 @@ fn generate_docs() -> String {
     out
 }
 
+fn generate_global_args_doc() -> String {
+    let schema_json = rscmd_core::global_schema();
+    let schema: serde_json::Value = serde_json::from_str(&schema_json).unwrap_or_default();
+    let props = schema.get("properties").and_then(|v| v.as_object());
+
+    let mut out = String::from(
+        "# CLI 全局参数（自动生成，勿手改）\n\n\
+         本文件由 `cargo xtask gen-docs` 生成，Schema 来自 `GlobalArgs` 的 `JsonSchema derive`。\n\n\
+         所有全局参数以 `_rscmd_` 内部 id 注册，避免与工具自身参数冲突。\n\n\
+         ```\n\
+         完整 JSON Schema: schema/global.json\n\
+         ```\n\n\
+         | 参数 | 类型 | 默认 | 说明 |\n\
+         |---|---|---|---|\n",
+    );
+
+    if let Some(props) = props {
+        for (name, def) in props {
+            let ty = def.get("type").and_then(|v| v.as_str()).unwrap_or("—");
+            let default = def
+                .get("default")
+                .and_then(|v| serde_json::to_string(v).ok())
+                .unwrap_or_else(|| "—".to_string());
+            let desc = def
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("—")
+                .replace('|', "\\|");
+            out.push_str(&format!("| `--{name}` | {ty} | `{default}` | {desc} |\n"));
+        }
+    }
+    out
+}
+
+fn generate_tool_schemas_doc() -> String {
+    let mut out = String::from(
+        "# 工具参数 Schema 摘要（自动生成，勿手改）\n\n\
+         本文件由 `cargo xtask gen-docs` 生成；完整 schema 见 `schema/*.json`。\n\n",
+    );
+    for tool in rscmd_tools::tools() {
+        let Some(schema_fn) = tool.schema else {
+            continue;
+        };
+        let schema_json = schema_fn();
+        let schema: serde_json::Value = serde_json::from_str(&schema_json).unwrap_or_default();
+        let title = schema
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or(tool.meta.name);
+        out.push_str(&format!("## {title}\n\n"));
+        let Some(props) = schema.get("properties").and_then(|v| v.as_object()) else {
+            out.push_str("（无参数）\n\n");
+            continue;
+        };
+        out.push_str("| 参数 | 类型 | 默认 | 必填 | 说明 |\n|---|---|---|---|---|\n");
+        let required = schema
+            .get("required")
+            .and_then(|v| v.as_array())
+            .cloned()
+            .unwrap_or_default();
+        for (name, def) in props {
+            let ty = def.get("type").and_then(|v| v.as_str()).unwrap_or("—");
+            let default = def
+                .get("default")
+                .and_then(|v| serde_json::to_string(v).ok())
+                .unwrap_or_else(|| "—".to_string());
+            let is_required = required.iter().any(|r| r.as_str() == Some(name));
+            let req_mark = if is_required { "✅" } else { "-" };
+            let desc = def
+                .get("description")
+                .and_then(|v| v.as_str())
+                .unwrap_or("—")
+                .replace('|', "\\|");
+            out.push_str(&format!(
+                "| `{name}` | {ty} | `{default}` | {req_mark} | {desc} |\n"
+            ));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+fn generate_readme() -> String {
+    let tool_count = rscmd_tools::tools().len();
+    format!(
+        "# rscmd 文档索引（自动生成，勿手改）\n\n\
+         本文件由 `cargo xtask gen-docs` 生成。\n\n\
+         ## 文件列表\n\n\
+         - [tools.md](./tools.md) — 全部工具元数据表格\n\
+         - [global-args.md](./global-args.md) — CLI 全局参数说明\n\
+         - [schemas.md](./schemas.md) — 各工具参数 Schema 摘要\n\n\
+         ## 快速校验\n\n\
+         ```bash\n\
+         cargo xtask check-fast   # fmt + clippy + registry + arch + docs + schema + deny + machete\n\
+         cargo xtask bench        # 启动时间基准回归\n\
+         cargo xtask release-preflight  # 发布前全量预检\n\
+         ```\n\n\
+         ## 当前状态\n\n\
+         - 工具数量：**{tool_count}**\n\
+         - Schema 文件：`schema/` 下 {} 个 `.json`\n",
+        schema_file_count()
+    )
+}
+
+fn schema_file_count() -> usize {
+    let dir = workspace_root().join("schema");
+    fs::read_dir(&dir)
+        .map(|entries| {
+            entries
+                .filter_map(|entry| entry.ok())
+                .filter(|entry| entry.path().extension().and_then(|e| e.to_str()) == Some("json"))
+                .count()
+        })
+        .unwrap_or(0)
+}
+
+type DocGen = fn() -> String;
+
 fn docs_check(write: bool) -> Result<()> {
-    let path = workspace_root().join("docs/tools.md");
-    let expected = generate_docs();
+    let docs_dir = workspace_root().join("docs");
+    let files: &[(&str, DocGen)] = &[
+        ("tools.md", generate_docs),
+        ("global-args.md", generate_global_args_doc),
+        ("schemas.md", generate_tool_schemas_doc),
+        ("README.md", generate_readme),
+    ];
 
     if write {
-        if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+        fs::create_dir_all(&docs_dir).map_err(|err| err.to_string())?;
+        for (name, gen) in files {
+            let path = docs_dir.join(name);
+            fs::write(&path, gen()).map_err(|err| err.to_string())?;
+            println!("已生成 {}", path.display());
         }
-        fs::write(&path, expected).map_err(|err| err.to_string())?;
-        println!("已生成 {}", path.display());
         return Ok(());
     }
 
-    let actual = fs::read_to_string(&path)
-        .map_err(|_| format!("缺少 {}，请运行 `cargo xtask gen-docs`", path.display()))?;
-    if actual != expected {
-        return Err(format!(
-            "{} 已过期，请运行 `cargo xtask gen-docs`",
-            path.display()
-        ));
+    let mut all_ok = true;
+    for (name, gen) in files {
+        let path = docs_dir.join(name);
+        let expected = gen();
+        let actual = fs::read_to_string(&path)
+            .map_err(|_| format!("缺少 {}，请运行 `cargo xtask gen-docs`", path.display()))?;
+        if actual != expected {
+            eprintln!("{} 已过期，请运行 `cargo xtask gen-docs`", path.display());
+            all_ok = false;
+        }
     }
-    println!("docs-check 通过：{} 是最新生成物", path.display());
+    if !all_ok {
+        return Err("部分 docs/*.md 已过期".to_string());
+    }
+    println!("docs-check 通过：{} 个文件都是最新生成物", files.len());
     Ok(())
 }
 
@@ -743,4 +875,17 @@ fn percentile(sorted: &[u128], p: u8) -> u128 {
     }
     let idx = ((sorted.len() - 1) as f64 * p as f64 / 100.0).round() as usize;
     sorted[idx.min(sorted.len() - 1)]
+}
+
+/// 发布前全量预检：check-fast → test → py-check → bench → wheel-smoke。
+/// 任一步骤失败立即中止，避免在有问题的状态下继续发布。
+pub fn release_preflight() -> Result<()> {
+    println!("=== release-preflight 开始 ===");
+    check_fast()?;
+    run_cargo(&["test", "--workspace"])?;
+    py_check()?;
+    bench()?;
+    wheel_smoke()?;
+    println!("=== release-preflight 通过，可以发布 ===");
+    Ok(())
 }

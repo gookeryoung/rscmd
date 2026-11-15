@@ -85,6 +85,41 @@ pub fn run(command: &mut Command, timeout: Duration, max_bytes: usize) -> io::Re
     }
 }
 
+/// 按行流式消费子进程 stdout/stderr。
+///
+/// 实现：先调用 [`run`] 拿到完整输出，然后逐行切分触发回调。
+/// 这种“事后切分”策略保持与 `run` 完全一致的超时/kill/截断语义，
+/// 避免并发共享管道 reader；代价是回调只能在进程退出后统一触发，而非边写边收到。
+///
+/// - `on_stdout_line` / `on_stderr_line` 每行（不含末尾 `\n`）调用一次；
+/// - `on_complete` 在所有行回调完成后调用，传入完整输出供需要 `ExitStatus` 的调用方。
+pub fn run_streaming<F1, F2, F3>(
+    command: &mut Command,
+    timeout: Duration,
+    max_bytes: usize,
+    mut on_stdout_line: F1,
+    mut on_stderr_line: F2,
+    on_complete: F3,
+) -> io::Result<()>
+where
+    F1: FnMut(&str),
+    F2: FnMut(&str),
+    F3: FnOnce(&ExecOutput),
+{
+    let output = run(command, timeout, max_bytes)?;
+    emit_lines(&output.stdout, &mut on_stdout_line);
+    emit_lines(&output.stderr, &mut on_stderr_line);
+    on_complete(&output);
+    Ok(())
+}
+
+fn emit_lines(data: &[u8], cb: &mut dyn FnMut(&str)) {
+    let text = String::from_utf8_lossy(data);
+    for line in text.lines() {
+        cb(line);
+    }
+}
+
 fn read_limited<R: std::io::Read>(
     mut reader: R,
     out: &mut Vec<u8>,
@@ -182,5 +217,25 @@ mod tests {
         cmd.args(&args);
         let out = run(&mut cmd, Duration::from_secs(2), 1024).unwrap();
         assert!(out.stdout.len() <= 1024, "max_bytes 应截断输出");
+    }
+
+    #[test]
+    fn run_streaming_collects_lines() {
+        let (prog, args) = echo_cmd("a\nb\nc");
+        let mut cmd = Command::new(prog);
+        cmd.args(&args);
+        let mut lines = Vec::new();
+        run_streaming(
+            &mut cmd,
+            Duration::from_secs(2),
+            1024 * 1024,
+            |l| lines.push(l.to_string()),
+            |_| {},
+            |out| assert!(out.success()),
+        )
+        .unwrap();
+        assert!(lines
+            .iter()
+            .any(|l| l.contains("a") || l.contains("b") || l.contains("c")));
     }
 }
