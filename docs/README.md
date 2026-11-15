@@ -11,10 +11,22 @@
 ## 快速校验
 
 ```bash
-cargo xtask check-fast   # fmt + clippy + registry + arch + docs + schema + deny + machete
-cargo xtask bench        # 启动时间基准回归
-cargo xtask release-preflight  # 发布前全量预检
+cargo xtask check-fast        # fmt + clippy + registry + arch + docs + schema + py-fresh + deny + machete
+cargo xtask bench             # 启动时间基准回归
+cargo xtask release-preflight # 发布前全量预检
 ```
+
+## Python 绑定
+
+`python/rscmd/_native.*` 是 `maturin develop` 的产物，console script 与 `python -m rscmd`
+都直接复用它。Rust 侧改动后必须重建，否则入口会静默跑旧 CLI：
+
+```bash
+maturin develop              # 或 .venv/Scripts/maturin.exe develop
+uv tool install --editable .
+```
+
+`cargo xtask py-fresh-check` 会在 `_native.*` 旧于 Rust 源码时失败并提示重建；本地未构建时跳过。
 
 ## 当前状态
 

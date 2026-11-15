@@ -4,6 +4,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::SystemTime;
 
 type Result<T> = std::result::Result<T, String>;
 
@@ -20,6 +21,7 @@ fn main() {
         "check-fast" => check_fast(),
         "check" => check(),
         "check-cov" => check_cov(),
+        "py-fresh-check" => py_fresh_check(),
         "wheel-smoke" => wheel_smoke(),
         "bench" => bench(),
         "release-preflight" => release_preflight(),
@@ -50,6 +52,7 @@ fn print_help() {
          \x20 check-fast      fmt + clippy + registry-check + arch-check + docs-check + schema-check\n\
          \x20 check           check-fast + 测试 + Python 测试（若存在 .venv）\n\
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
+         \x20 py-fresh-check  校验 python/rscmd/_native.* 是否旧于 Rust 源码\n\
          \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
          \x20 bench           构建 release 并跑启动时间基准回归\n\
          \x20 version-check   校验 tag / Cargo / wheel 版本一致（tag 取 RSCMD_RELEASE_TAG 或 GITHUB_REF_NAME）\n\
@@ -363,10 +366,18 @@ fn generate_readme() -> String {
          - [schemas.md](./schemas.md) — 各工具参数 Schema 摘要\n\n\
          ## 快速校验\n\n\
          ```bash\n\
-         cargo xtask check-fast   # fmt + clippy + registry + arch + docs + schema + deny + machete\n\
-         cargo xtask bench        # 启动时间基准回归\n\
-         cargo xtask release-preflight  # 发布前全量预检\n\
+         cargo xtask check-fast        # fmt + clippy + registry + arch + docs + schema + py-fresh + deny + machete\n\
+         cargo xtask bench             # 启动时间基准回归\n\
+         cargo xtask release-preflight # 发布前全量预检\n\
          ```\n\n\
+         ## Python 绑定\n\n\
+         `python/rscmd/_native.*` 是 `maturin develop` 的产物，console script 与 `python -m rscmd`\n\
+         都直接复用它。Rust 侧改动后必须重建，否则入口会静默跑旧 CLI：\n\n\
+         ```bash\n\
+         maturin develop              # 或 .venv/Scripts/maturin.exe develop\n\
+         uv tool install --editable .\n\
+         ```\n\n\
+         `cargo xtask py-fresh-check` 会在 `_native.*` 旧于 Rust 源码时失败并提示重建；本地未构建时跳过。\n\n\
          ## 当前状态\n\n\
          - 工具数量：**{tool_count}**\n\
          - Schema 文件：`schema/` 下 {} 个 `.json`\n",
@@ -526,6 +537,7 @@ fn check_fast() -> Result<()> {
     arch_check()?;
     docs_check(false)?;
     schema_check(false)?;
+    py_fresh_check()?;
     // 外部工具缺失时显式跳过并打印提示，不静默通过。
     deny_check()?;
     run_optional("cargo-machete", "cargo machete", &["machete"])?;
@@ -624,6 +636,111 @@ fn cargo_plugin_path(plugin: &str) -> Option<PathBuf> {
         .map(|dir| dir.join(&exe))
         .find(|path| path.exists())
         .or_else(|| which(plugin).then(|| PathBuf::from(plugin)))
+}
+
+/// Python 原生产物新鲜度：本地已构建的 `_native.*` 若旧于 Rust 源码，
+/// console script / `python -m` 会静默跑旧 CLI，这里提前失败并给出重建命令。
+fn py_fresh_check() -> Result<()> {
+    let root = workspace_root();
+    let Some(native) = native_artifact(&root) else {
+        println!("跳过产物新鲜度检查：未发现 python/rscmd/_native.*（本地未构建原生模块）");
+        return Ok(());
+    };
+    let native_mtime = fs::metadata(&native)
+        .and_then(|meta| meta.modified())
+        .map_err(|err| format!("读取 {} 修改时间失败: {err}", native.display()))?;
+
+    let Some((newest_path, newest_mtime)) = newest_input(&root)? else {
+        println!("产物新鲜度检查通过：未找到 Rust 源文件");
+        return Ok(());
+    };
+    if newest_mtime > native_mtime {
+        return Err(format!(
+            "`{}` 旧于最新源码 `{}`。\n\
+             请运行 `maturin develop` 重建原生模块，否则 Python 入口会静默退回旧 CLI。",
+            native.display(),
+            newest_path.display()
+        ));
+    }
+    println!("产物新鲜度检查通过：{}", native.display());
+    Ok(())
+}
+
+fn native_artifact(root: &Path) -> Option<PathBuf> {
+    let entries = fs::read_dir(root.join("python/rscmd")).ok()?;
+    entries
+        .filter_map(|entry| entry.ok())
+        .map(|entry| entry.path())
+        .find(|path| {
+            path.file_stem().and_then(|stem| stem.to_str()) == Some("_native")
+                && matches!(
+                    path.extension().and_then(|ext| ext.to_str()),
+                    Some("pyd" | "so" | "dylib")
+                )
+        })
+}
+
+/// 影响原生模块的输入：`crates/` 下的 Rust 源码与 Cargo.toml，加上根清单。
+/// `xtask`（仓库工具）与 `rscmd-cli`（独立二进制）不参与扩展模块构建，排除以免误报。
+fn newest_input(root: &Path) -> Result<Option<(PathBuf, SystemTime)>> {
+    let mut newest: Option<(PathBuf, SystemTime)> = None;
+    let crates_dir = root.join("crates");
+    for entry in fs::read_dir(&crates_dir)
+        .map_err(|err| format!("读取 {} 失败: {err}", crates_dir.display()))?
+        .filter_map(|entry| entry.ok())
+    {
+        let dir = entry.path();
+        let name = dir
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or_default();
+        if !dir.is_dir() || matches!(name, "xtask" | "rscmd-cli") {
+            continue;
+        }
+        collect_inputs(&dir, &mut newest)?;
+    }
+    for name in ["Cargo.toml", "pyproject.toml"] {
+        let path = root.join(name);
+        if let Ok(modified) = fs::metadata(&path).and_then(|meta| meta.modified()) {
+            push_newest(&path, modified, &mut newest);
+        }
+    }
+    Ok(newest)
+}
+
+fn collect_inputs(dir: &Path, newest: &mut Option<(PathBuf, SystemTime)>) -> Result<()> {
+    for entry in fs::read_dir(dir)
+        .map_err(|err| format!("读取 {} 失败: {err}", dir.display()))?
+        .filter_map(|entry| entry.ok())
+    {
+        let path = entry.path();
+        if path.is_dir() {
+            collect_inputs(&path, newest)?;
+            continue;
+        }
+        let is_input = match path.file_name().and_then(|name| name.to_str()) {
+            Some("Cargo.toml") => true,
+            Some(name) => name.ends_with(".rs"),
+            None => false,
+        };
+        if !is_input {
+            continue;
+        }
+        if let Ok(modified) = fs::metadata(&path).and_then(|meta| meta.modified()) {
+            push_newest(&path, modified, newest);
+        }
+    }
+    Ok(())
+}
+
+fn push_newest(path: &Path, modified: SystemTime, newest: &mut Option<(PathBuf, SystemTime)>) {
+    if newest
+        .as_ref()
+        .map(|(_, time)| modified > *time)
+        .unwrap_or(true)
+    {
+        *newest = Some((path.to_path_buf(), modified));
+    }
 }
 
 fn py_check() -> Result<()> {
