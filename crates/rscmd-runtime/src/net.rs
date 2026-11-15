@@ -39,7 +39,12 @@ pub fn decode(s: &str) -> Result<String, std::string::FromUtf8Error> {
 pub fn download(url: &str, timeout: Duration) -> Result<Vec<u8>, DownloadError> {
     let lower = url.to_ascii_lowercase();
     if let Some(path) = url.strip_prefix("file://") {
-        let path = path.trim_start_matches('/');
+        // `file:///tmp/a` 是 UNIX 绝对路径，只去掉为 Windows 盘符多出的一层斜杠；
+        // 不能用 trim_start_matches('/')，那会把 UNIX 绝对路径变成相对路径。
+        let path = match path.strip_prefix('/') {
+            Some(rest) if is_windows_drive(rest) => rest,
+            _ => path,
+        };
         return std::fs::read(path).map_err(DownloadError::Io);
     }
     if lower.starts_with("http://") || lower.starts_with("https://") {
@@ -48,6 +53,12 @@ pub fn download(url: &str, timeout: Duration) -> Result<Vec<u8>, DownloadError> 
     Err(DownloadError::UnsupportedScheme(
         "仅支持 file://、http://、https://".to_string(),
     ))
+}
+
+/// `file:///C:/a` 去掉多余斜杠后形如 `C:/a`，说明是 Windows 盘符路径。
+fn is_windows_drive(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() > 1 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 /// 用 Range 头从 `offset` 字节开始续传。服务器必须返回 206 Partial Content，
@@ -232,6 +243,27 @@ mod tests {
         let path = dir.path().join("f.txt");
         std::fs::write(&path, b"hello").unwrap();
         let url = format!("file://{}", path.display());
+        let data = download(&url, Duration::from_secs(1)).unwrap();
+        assert_eq!(data, b"hello");
+    }
+
+    #[test]
+    fn detects_windows_drive_paths() {
+        assert!(is_windows_drive("C:/tmp/a.txt"));
+        assert!(!is_windows_drive("/tmp/a.txt"));
+        assert!(!is_windows_drive("tmp/a.txt"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn download_accepts_three_slash_file_url() {
+        let dir = crate::fs::temp_dir().unwrap();
+        let path = dir.path().join("f.txt");
+        std::fs::write(&path, b"hello").unwrap();
+        let url = format!(
+            "file:///{}",
+            path.display().to_string().trim_start_matches('/')
+        );
         let data = download(&url, Duration::from_secs(1)).unwrap();
         assert_eq!(data, b"hello");
     }

@@ -175,9 +175,10 @@ mod tests {
 
     #[cfg(not(windows))]
     fn echo_cmd(msg: &str) -> (String, Vec<String>) {
+        // 必须用引号包住：多行消息裸写进 `sh -c` 会被当成多条命令执行。
         (
             "sh".to_string(),
-            vec!["-c".to_string(), format!("echo {msg}")],
+            vec!["-c".to_string(), format!("printf '%s\\n' \"{msg}\"")],
         )
     }
 
