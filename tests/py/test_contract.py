@@ -32,11 +32,100 @@ def test_invoke_error_maps_fields() -> None:
     assert info.value.field == "json"
 
 
+def test_invoke_unknown_tool_raises() -> None:
+    with pytest.raises(rscmd.RscmdError) as info:
+        rscmd.invoke("nonexistent_tool")
+    assert info.value.code == "TOOL_NOT_FOUND"
+    assert info.value.exit_code == 4
+
+
+def test_describe_returns_meta() -> None:
+    meta = rscmd.describe("wc")
+    assert meta["name"] == "wc"
+    assert "summary" in meta
+    assert meta["python"] in ("argv_only", "structured")
+
+
+def test_describe_unknown_tool_raises() -> None:
+    with pytest.raises(rscmd.RscmdError) as info:
+        rscmd.describe("zzzzzz")
+    assert info.value.code == "TOOL_NOT_FOUND"
+
+
+# --- run_argv / cli_main：新风格入口 ---
+
+
 def test_run_argv_returns_envelope() -> None:
     envelope = rscmd.run_argv(["case", "--mode", "snake", "HelloWorld"])
     assert envelope["schema"] == "rscmd-result/1"
     assert envelope["ok"] is True
     assert envelope["data"]["text"] == "hello_world"
+
+
+def test_run_argv_run_subcommand() -> None:
+    """新风格：rscmd run case ..."""
+    envelope = rscmd.run_argv(["run", "case", "--mode", "snake", "HelloWorld"])
+    assert envelope["ok"] is True
+    assert envelope["data"]["text"] == "hello_world"
+
+
+def test_run_argv_run_short_alias() -> None:
+    """r 是 run 的短别名"""
+    envelope = rscmd.run_argv(["r", "case", "--mode", "snake", "HelloWorld"])
+    assert envelope["ok"] is True
+
+
+def test_run_argv_run_without_tool_is_error() -> None:
+    """rscmd run 不带工具名 → USAGE / MISSING_TOOL"""
+    with pytest.raises(rscmd.RscmdError) as info:
+        rscmd.run_argv(["run"])
+    assert info.value.code == "MISSING_TOOL"
+    assert info.value.exit_code == 2
+
+
+def test_run_argv_version_short_alias() -> None:
+    envelope = rscmd.run_argv(["v"])
+    assert envelope["ok"] is True
+    assert envelope["data"]["version"].startswith("0.1")
+
+
+def test_run_argv_doctor_short_alias() -> None:
+    envelope = rscmd.run_argv(["d"])
+    assert envelope["ok"] is True
+    assert envelope["data"]["os"] in ("windows", "linux", "macos", "darwin")
+
+
+def test_run_argv_info_short_alias() -> None:
+    envelope = rscmd.run_argv(["i", "wc"])
+    assert envelope["ok"] is True
+    assert envelope["data"]["name"] == "wc"
+
+
+def test_cli_main_no_args_returns_help() -> None:
+    """无参数 → exit=0 + 帮助文本"""
+    exit_code, stdout, stderr = rscmd.cli_main([])
+    assert exit_code == 0
+    assert "rscmd" in stdout.lower() or "usage" in stdout.lower() or "tool" in stdout.lower()
+
+
+def test_cli_main_unknown_tool_is_usage() -> None:
+    exit_code, stdout, stderr = rscmd.cli_main(["nope"])
+    assert exit_code == 2  # USAGE
+
+
+def test_cli_main_json_fmt_success() -> None:
+    exit_code, stdout, _ = rscmd.cli_main(
+        ["--json", "json_fmt", "{\"a\": 1}"]
+    )
+    assert exit_code == 0
+    envelope = json.loads(stdout)
+    assert envelope["schema"] == "rscmd-result/1"
+    assert envelope["ok"] is True
+    # CLI 入口返回的是 { "json": "<formatted string>" }
+    assert '"a"' in envelope["data"]["json"]
+
+
+# --- subprocess：端到端 Python console script ---
 
 
 def test_module_cli_success_json() -> None:
@@ -64,3 +153,28 @@ def test_module_cli_error_json() -> None:
     assert envelope["schema"] == "rscmd-error/1"
     assert envelope["code"] == "INVALID_JSON"
     assert envelope["exit_code"] == 3
+
+
+def test_module_cli_run_subcommand() -> None:
+    """子进程新风格：python -m rscmd run case ..."""
+    result = subprocess.run(
+        [sys.executable, "-m", "rscmd", "--json", "run", "case", "--mode", "snake", "Hi"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    envelope = json.loads(result.stdout)
+    assert envelope["data"]["text"] == "hi"
+
+
+def test_module_cli_no_args_shows_help() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "rscmd"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0
+    output = (result.stdout + result.stderr).lower()
+    assert "rscmd" in output

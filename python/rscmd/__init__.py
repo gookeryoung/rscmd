@@ -10,6 +10,7 @@ from . import _native
 __all__ = [
     "RscmdError",
     "__version__",
+    "cli_main",
     "describe",
     "invoke",
     "run_argv",
@@ -67,3 +68,11 @@ def run_argv(argv: Sequence[str]) -> dict[str, Any]:
         return _native.run_argv([str(item) for item in argv])
     except _native.NativeError as error:
         _raise_native(error)
+
+
+def cli_main(argv: Sequence[str]) -> tuple[int, str, str]:
+    """CLI 级入口：返回 (exit_code, stdout, stderr)。
+
+    与 `python -m rscmd` 的行为一致；未知命令、解析失败都会以 exit_code=2/3/4 区分。
+    """
+    return _native.cli_main([str(item) for item in argv])
