@@ -4,11 +4,18 @@ on:
   push:
     tags:
       - "v*"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "上传 PyPI 并创建 GitHub Release（默认关闭，仅限在 tag ref 上手动开启）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
 
 jobs:
+  # 原生二进制：三平台构建，仅上传 artifact，不对外发布。
   release:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -29,15 +36,46 @@ jobs:
           name: ${{ matrix.artifact }}
           path: target/release/rscmd*
 
-  publish:
-    runs-on: ubuntu-latest
-    needs: release
+  # Python wheel：每个平台各构建一次，保证三平台可安装。
+  wheels:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: windows-latest
+          - os: macos-latest
+          - os: macos-15-intel
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo run -q -p xtask -- release-preflight
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - run: pip install maturin
       - run: maturin build --release --out dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wheel-${{ matrix.os }}
+          path: dist/*.whl
+
+  # 对外发布：默认关闭，仅 workflow_dispatch 且显式 publish=true 时执行。
+  # 凭证与原发布意图（PyPI token、GitHub Release）保持原状。
+  publish:
+    runs-on: ubuntu-latest
+    needs: [release, wheels]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish == true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup component add llvm-tools-preview
+      - run: cargo install cargo-llvm-cov --quiet
+      - run: cargo run -q -p xtask -- release-preflight
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: wheel-*
+          merge-multiple: true
+          path: dist
       - run: pip install twine
       - run: twine upload dist/*.whl
         env:
