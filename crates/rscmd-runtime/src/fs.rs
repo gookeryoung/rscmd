@@ -3,6 +3,9 @@
 use std::fs;
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
+
+static TMP_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 /// 文本文件常见扩展名白名单（小写）。无扩展名或不在白名单内的按二进制处理。
 const TEXT_EXTENSIONS: &[&str] = &[
@@ -108,7 +111,8 @@ pub fn temp_dir() -> io::Result<TempDir> {
 /// 在指定父目录下创建临时目录。
 pub fn temp_dir_in(parent: &Path) -> io::Result<TempDir> {
     fs::create_dir_all(parent)?;
-    let name = format!("rscmd-{}-{}", std::process::id(), rand_suffix());
+    let seq = TMP_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let name = format!("rscmd-{}-{}-{seq}", std::process::id(), rand_suffix());
     let path = parent.join(name);
     fs::create_dir(&path)?;
     Ok(TempDir { path })

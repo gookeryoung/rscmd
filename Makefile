@@ -1,4 +1,4 @@
-.PHONY: check-docs check-fast test flow py-check check gen-docs cov wheel-smoke test-tool cov-tool py-test-tool
+.PHONY: check-docs check-fast test flow py-check check gen-docs cov wheel-smoke test-tool cov-tool py-test-tool bench
 
 check-docs:
 	cargo run -q -p xtask -- docs-check
@@ -34,3 +34,6 @@ cov-tool:
 
 py-test-tool:
 	python -m pytest tests/py -q -k $(TOOL)
+
+bench:
+	cargo run -q -p xtask -- bench

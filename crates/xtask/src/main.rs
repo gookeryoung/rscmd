@@ -21,6 +21,7 @@ fn main() {
         "check" => check(),
         "check-cov" => check_cov(),
         "wheel-smoke" => wheel_smoke(),
+        "bench" => bench(),
         _ => {
             print_help();
             Ok(())
@@ -47,7 +48,8 @@ fn print_help() {
          \x20 check-fast      fmt + clippy + registry-check + arch-check + docs-check + schema-check\n\
          \x20 check           check-fast + 测试 + Python 测试（若存在 .venv）\n\
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
-         \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟"
+         \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
+         \x20 bench           构建 release 并跑启动时间基准回归"
     );
 }
 
@@ -661,4 +663,84 @@ fn run_cargo(args: &[&str]) -> Result<()> {
             status.code()
         ))
     }
+}
+
+/// 启动时间基准回归：构建 release profile，跑 `rscmd --version` N 次，
+/// 输出 p50/p95/p99，若 median 超过基线 × 2 则失败。
+///
+/// 基线（2026-11-15，P0 实测）：median ~6.8ms，阈值设 20ms。
+/// 每次 P 级别的大改动应更新此基线。
+const BENCH_ITERATIONS: usize = 30;
+const BENCH_BASELINE_MEDIAN_MS: u128 = 10;
+const BENCH_FAILURE_MULTIPLIER: u128 = 2;
+
+fn bench() -> Result<()> {
+    run_cargo(&["build", "--release", "-p", "rscmd-cli"])?;
+
+    let exe = workspace_root()
+        .join("target")
+        .join("release")
+        .join(if cfg!(windows) { "rscmd.exe" } else { "rscmd" });
+    if !exe.exists() {
+        return Err(format!("找不到 release 二进制: {}", exe.display()));
+    }
+
+    let mut samples = Vec::with_capacity(BENCH_ITERATIONS);
+    println!(
+        "\n基准：{} 次 {} --version",
+        BENCH_ITERATIONS,
+        exe.display()
+    );
+    println!(
+        "基线 median ≤ {}ms，超过 {}ms 触发失败",
+        BENCH_BASELINE_MEDIAN_MS,
+        BENCH_BASELINE_MEDIAN_MS * BENCH_FAILURE_MULTIPLIER
+    );
+
+    for i in 0..BENCH_ITERATIONS {
+        let start = std::time::Instant::now();
+        let status = Command::new(&exe)
+            .arg("--version")
+            .status()
+            .map_err(|err| format!("执行 {} 失败: {err}", exe.display()))?;
+        let elapsed = start.elapsed().as_millis();
+        if !status.success() {
+            return Err(format!(
+                "bench 中第 {i} 次 `--version` 退出码 {:?}",
+                status.code()
+            ));
+        }
+        samples.push(elapsed);
+    }
+
+    samples.sort();
+    let median = percentile(&samples, 50);
+    let p95 = percentile(&samples, 95);
+    let p99 = percentile(&samples, 99);
+    let min = samples.first().copied().unwrap_or(0);
+    let max = samples.last().copied().unwrap_or(0);
+    let avg = samples.iter().sum::<u128>() as f64 / samples.len() as f64;
+
+    println!("\n  min   p50   p95   p99   max   avg");
+    println!(
+        "  {}    {}    {}    {}    {}    {:.1}",
+        min, median, p95, p99, max, avg
+    );
+
+    let threshold = BENCH_BASELINE_MEDIAN_MS * BENCH_FAILURE_MULTIPLIER;
+    if median > threshold {
+        return Err(format!(
+            "median {median}ms 超过阈值 {threshold}ms（基线 {BENCH_BASELINE_MEDIAN_MS}ms × {BENCH_FAILURE_MULTIPLIER}）"
+        ));
+    }
+    println!("bench 通过");
+    Ok(())
+}
+
+fn percentile(sorted: &[u128], p: u8) -> u128 {
+    if sorted.is_empty() {
+        return 0;
+    }
+    let idx = ((sorted.len() - 1) as f64 * p as f64 / 100.0).round() as usize;
+    sorted[idx.min(sorted.len() - 1)]
 }

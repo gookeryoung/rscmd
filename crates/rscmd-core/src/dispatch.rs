@@ -1,20 +1,16 @@
 //! 无头调度：CLI 与 Python 绑定共用同一套解析、执行与结果构造。
 
-use clap::{Arg, ArgAction, ArgMatches, Command};
+use clap::{Arg, ArgAction, Args, Command};
 use serde_json::{json, Value};
 
+use crate::args::{
+    GlobalArgs, GLOBAL_CONFIRM, GLOBAL_DRY_RUN, GLOBAL_JSON, GLOBAL_LIMIT, GLOBAL_QUIET,
+    GLOBAL_WORKERS,
+};
 use crate::ctx::ToolCtx;
 use crate::errors::RscmdError;
 use crate::registry::BUILTIN_COMMANDS;
 use crate::tool::{meta_json, ToolDef};
-
-/// 全局参数的内部 id 统一加前缀，避免与工具自身的参数 id 冲突。
-const GLOBAL_JSON: &str = "_rscmd_json";
-const GLOBAL_QUIET: &str = "_rscmd_quiet";
-const GLOBAL_DRY_RUN: &str = "_rscmd_dry_run";
-const GLOBAL_CONFIRM: &str = "_rscmd_confirm";
-const GLOBAL_WORKERS: &str = "_rscmd_workers";
-const GLOBAL_LIMIT: &str = "_rscmd_limit";
 
 pub struct Outcome {
     pub tool: String,
@@ -73,29 +69,10 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
     let mut root = Command::new("rscmd")
         .version(env!("CARGO_PKG_VERSION"))
         .about("面向小模型调用的工具集")
-        .disable_help_subcommand(true)
-        .arg(flag(GLOBAL_JSON, "json", "以 JSON 信封输出"))
-        .arg(flag(GLOBAL_QUIET, "quiet", "人读模式下不输出成功结果"))
-        .arg(flag(GLOBAL_DRY_RUN, "dry-run", "仅预演，不产生副作用"))
-        .arg(flag(GLOBAL_CONFIRM, "confirm", "确认执行有副作用的操作"))
-        .arg(
-            Arg::new(GLOBAL_WORKERS)
-                .long("workers")
-                .global(true)
-                .value_name("N")
-                .value_parser(clap::value_parser!(usize))
-                .default_value("0")
-                .help("并行度，0 表示自动"),
-        )
-        .arg(
-            Arg::new(GLOBAL_LIMIT)
-                .long("limit")
-                .global(true)
-                .value_name("N")
-                .value_parser(clap::value_parser!(usize))
-                .default_value("0")
-                .help("结果条数上限，0 表示不限制"),
-        );
+        .disable_help_subcommand(true);
+
+    // 全局参数统一由 GlobalArgs derive 注入，id 带 `_rscmd_` 前缀避免与工具参数冲突。
+    root = GlobalArgs::augment_args(root);
 
     for tool in tools {
         let mut command = (tool.build)();
@@ -123,15 +100,7 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
     .subcommand(Command::new("doctor").about("输出运行环境自检信息"))
 }
 
-fn flag(id: &'static str, long: &'static str, help: &'static str) -> Arg {
-    Arg::new(id)
-        .long(long)
-        .action(ArgAction::SetTrue)
-        .global(true)
-        .help(help)
-}
-
-fn run_matches(tools: &'static [ToolDef], matches: &ArgMatches) -> Outcome {
+fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome {
     let (name, sub) = match matches.subcommand() {
         Some(pair) => pair,
         None => {
@@ -147,6 +116,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &ArgMatches) -> Outcome {
         }
     };
 
+    // root 级 + sub 级同名 flag 都算激活（兼容 `--json` 放在子命令后）
     let json = matches.get_flag(GLOBAL_JSON) || flag_in(sub, GLOBAL_JSON);
     let quiet = matches.get_flag(GLOBAL_QUIET) || flag_in(sub, GLOBAL_QUIET);
     let dry_run = matches.get_flag(GLOBAL_DRY_RUN) || flag_in(sub, GLOBAL_DRY_RUN);
@@ -223,11 +193,11 @@ fn find_tool<'a>(tools: &'a [ToolDef], name: &str) -> Option<&'a ToolDef> {
         .find(|tool| tool.meta.name == name || tool.meta.aliases.contains(&name))
 }
 
-fn flag_in(matches: &ArgMatches, name: &str) -> bool {
+fn flag_in(matches: &clap::ArgMatches, name: &str) -> bool {
     matches.contains_id(name) && matches.get_flag(name)
 }
 
-fn usize_in(matches: &ArgMatches, name: &str) -> usize {
+fn usize_in(matches: &clap::ArgMatches, name: &str) -> usize {
     matches
         .try_get_one::<usize>(name)
         .ok()
