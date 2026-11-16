@@ -240,7 +240,7 @@ impl PeFile {
 1. **是否迁移 GUI**：方案 E（不迁移，保留 CLI）仍是合法选项；若迁移，是否接受方案 A（egui）作为主路线。
 2. **技术路线**：A egui / B Win32 原生 / C Python tkinter 兜底 / E 不迁移。推荐 A，理由是业务复用与单二进制；若更看重原生观感选 B，若只看重最快对齐 fcmd 选 C。
 3. **依赖审批**：`eframe`、`image`、`rfd`、`arboard`（以及可能的中文编码 crate）。需明确允许新增，或限定「仅 Windows 目标」。
-4. **GUI 入口形态：已定（2026-11-17）**：保留独立二进制 `rscmd-reshackw` 承载 GUI，另注册 `ToolDef { name: "reshackw", gui: true, python: Hidden }`（落点 `crates/rscmd-tool-system/src/reshackw.rs`）用 `rscmd reshackw [FILE]` 定位并拉起。定位顺序 `RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；找不到返回 `GUI_UNAVAILABLE`（退出码 1）并提示 `cargo build -p rscmd-gui --features gui`。`run_json` 为 `None`，MCP 与 `list --for-llm` 不暴露；schema 保留以满足 `gen-schema` 的全工具覆盖要求。
+4. **GUI 入口形态：已定（2026-11-17）**：保留独立二进制 `rscmd-reshackw` 承载 GUI，另注册 `ToolDef { name: "reshackw", gui: true, python: Hidden }`（落点 `crates/rscmd-tool-system/src/reshackw.rs`）用 `rscmd reshackw [FILE]` 定位并拉起。定位顺序 `RSCMD_RESHACKW` → 与 `rscmd` 同目录 → `PATH` → 源码树 `target/{debug,release}`（cwd 向上，含 `CARGO_TARGET_DIR`，让 Python / `uv tool` 入口也能找到本地构建）；找不到返回 `GUI_UNAVAILABLE`（退出码 1）并提示 `cargo build -p rscmd-gui --features gui`。`run_json` 为 `None`，MCP 与 `list --for-llm` 不暴露；schema 保留以满足 `gen-schema` 的全工具覆盖要求。
 5. **覆盖率口径**：GUI 壳层（`app.rs`/`view/`）是否排除出 llvm-cov；若排除，必须在 xtask 中写明文件与理由，且 `preview.rs`/`settings.rs` 仍须单测。
 6. **设置兼容**：是否一次性导入 fcmd 的 `~/.fcmd/ui/reshackw.json`，还是完全使用 `RSCMD_HOME/state/gui/reshackw.json`。
 

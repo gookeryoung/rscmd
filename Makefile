@@ -1,10 +1,10 @@
 # Makefile - rscmd project shortcuts
-# 运行 `make help` 查看全部命令。
+# Run `make help` to list all targets.
 #
-# 与 fcmd 对齐的目标命名（语义映射见 AGENTS.md）：
+# Target names mirror fcmd (semantic mapping lives in AGENTS.md):
 #   check-docs / check-fast / flow / check / cov / test / push
-# Rust 等价物：ruff+pyrefly → cargo fmt+clippy；pytest → cargo test；
-#              pytest --cov → cargo llvm-cov；bump-my-version → 手动改版本 + CHANGELOG。
+# Rust equivalents: ruff+pyrefly -> cargo fmt+clippy; pytest -> cargo test;
+#                  pytest --cov -> cargo llvm-cov; bump-my-version -> manual version + CHANGELOG.
 
 TOOL ?=
 
@@ -12,78 +12,78 @@ TOOL ?=
         gen-docs gen-schema cov wheel-smoke bench version-check prek push \
         test-tool cov-tool py-test-tool
 
-help: ## 显示命令列表
-	@echo   check-docs      L0 文档门禁（adr-check + 生成物 docs-check）
-	@echo   check-fast      L1 配置/内环门禁（fmt + clippy + 注册表/架构/文档/schema/deny/machete）
-	@echo   flow            L2 代码门禁（check-fast + test）
-	@echo   check           全量门禁（check-fast + test + pytest + mypy）
-	@echo   test            代码测试（cargo test，不跑覆盖率）
-	@echo   cov             覆盖率（llvm-cov，阈值 95%，排除 rscmd-py / xtask）
-	@echo   py-check        Python 侧 pytest（需 .venv）
-	@echo   adr-check       校验 ADR 命名/编号/索引/废弃状态
-	@echo   docs-check      校验 docs/*.md 生成物是否最新
-	@echo   gen-docs        重新生成 docs/*.md
-	@echo   gen-schema      重新生成 schema/*.json
-	@echo   wheel-smoke     构建 wheel、安装进 .venv 并冒烟
-	@echo   bench           启动时间基准回归
-	@echo   version-check   校验 tag / Cargo / wheel / CHANGELOG 版本一致
-	@echo   prek            本地提交钩子全量跑一遍（需安装 prek）
-	@echo   push            推送所有 remote 与 tags（不自动打 tag）
+help: ## List available targets
+	@echo   check-docs      L0 docs gate (adr-check + generated-artifact docs-check)
+	@echo   check-fast      L1 config/inner-loop gate (fmt + clippy + registry/arch/docs/schema/deny/machete)
+	@echo   flow            L2 code gate (check-fast + test)
+	@echo   check           Full gate (check-fast + test + pytest + mypy)
+	@echo   test            Code tests (cargo test, no coverage)
+	@echo   cov             Coverage (llvm-cov, 95 percent line threshold, excludes rscmd-py / xtask)
+	@echo   py-check        Python-side pytest (requires .venv)
+	@echo   adr-check       Validate ADR naming/numbering/index/deprecation state
+	@echo   docs-check      Validate that docs/*.md generated artifacts are up to date
+	@echo   gen-docs        Regenerate docs/*.md
+	@echo   gen-schema      Regenerate schema/*.json
+	@echo   wheel-smoke     Build the wheel, install into .venv and smoke test
+	@echo   bench           Startup-time benchmark regression
+	@echo   version-check   Validate tag / Cargo / wheel / CHANGELOG version consistency
+	@echo   prek            Run all local commit hooks once (requires prek)
+	@echo   push            Push all remotes and tags (never creates tags)
 	@echo   test-tool       cargo test -p rscmd-tool-$$TOOL
-	@echo   cov-tool        llvm-cov -p rscmd-tool-$$TOOL（阈值 95%）
+	@echo   cov-tool        llvm-cov -p rscmd-tool-$$TOOL (95 percent line threshold)
 	@echo   py-test-tool    pytest -k $$TOOL
 
-check-docs: ## L0 文档门禁（adr-check + docs-check）
+check-docs: ## L0 docs gate (adr-check + docs-check)
 	cargo run -q -p xtask -- check-docs
 
-adr-check: ## 校验 ADR 命名/编号/索引/废弃状态
+adr-check: ## Validate ADR naming/numbering/index/deprecation state
 	cargo run -q -p xtask -- adr-check
 
-docs-check: ## 校验 docs/*.md 生成物是否最新
+docs-check: ## Validate that docs/*.md generated artifacts are up to date
 	cargo run -q -p xtask -- docs-check
 
-check-fast: ## L1 配置/内环门禁
+check-fast: ## L1 config/inner-loop gate
 	cargo run -q -p xtask -- check-fast
 
-test: ## 代码测试（不跑覆盖率）
+test: ## Code tests (no coverage)
 	cargo test --workspace
 
-flow: check-fast test ## L2 代码门禁（check-fast + test）
+flow: check-fast test ## L2 code gate (check-fast + test)
 
-py-check: ## Python 侧 pytest（需 .venv）
+py-check: ## Python-side pytest (requires .venv)
 	cargo run -q -p xtask -- py-check
 
-check: ## 全量门禁（check-fast + test + pytest + mypy）
+check: ## Full gate (check-fast + test + pytest + mypy)
 	cargo run -q -p xtask -- check
 
-gen-docs: ## 重新生成 docs/*.md
+gen-docs: ## Regenerate docs/*.md
 	cargo run -q -p xtask -- gen-docs
 
-gen-schema: ## 重新生成 schema/*.json
+gen-schema: ## Regenerate schema/*.json
 	cargo run -q -p xtask -- gen-schema
 
-cov: ## 覆盖率（llvm-cov，阈值 95%）
+cov: ## Coverage (llvm-cov, 95% threshold)
 	cargo run -q -p xtask -- check-cov
 
-wheel-smoke: ## 构建 wheel、安装进 .venv 并冒烟
+wheel-smoke: ## Build the wheel, install into .venv and smoke test
 	cargo run -q -p xtask -- wheel-smoke
 
-bench: ## 启动时间基准回归
+bench: ## Startup-time benchmark regression
 	cargo run -q -p xtask -- bench
 
-version-check: ## 校验 tag / Cargo / wheel / CHANGELOG 版本一致
+version-check: ## Validate tag / Cargo / wheel / CHANGELOG version consistency
 	cargo run -q -p xtask -- version-check
 
-prek: ## 本地提交钩子全量跑一遍（需安装 prek）
+prek: ## Run all local commit hooks once (requires prek)
 	prek run -a
 
-push: ## 推送所有 remote 与 tags（不自动打 tag）
+push: ## Push all remotes and tags (never creates tags)
 	cargo run -q -p xtask -- push
 
 test-tool: ## cargo test -p rscmd-tool-$TOOL
 	cargo test -p rscmd-tool-$(TOOL)
 
-cov-tool: ## llvm-cov -p rscmd-tool-$TOOL（阈值 95%）
+cov-tool: ## llvm-cov -p rscmd-tool-$TOOL (95% threshold)
 	cargo llvm-cov -p rscmd-tool-$(TOOL) --fail-under-lines 95
 
 py-test-tool: ## pytest -k $TOOL

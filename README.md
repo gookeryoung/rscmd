@@ -1,68 +1,70 @@
 # rscmd
 
-面向小模型调用的 Rust 工具集：**单一入口、稳定 JSON 信封、可自描述的 schema**。
-业务逻辑全部在 Rust 侧，同时提供 CLI、Python 绑定和 MCP stdio server 三种调用方式。
+English | [简体中文](README.zh-CN.md)
 
-- 19 个内置工具，覆盖文本、数据、加密、系统与网络
-- GUI 前端不侵入默认构建：`rscmd reshackw` 负责拉起独立二进制 `rscmd-reshackw`
-- 成功 / 错误信封版本化（`rscmd-result/1` / `rscmd-error/1`），退出码语义固定
-- `--json` 机读优先，人读输出不污染 stdout 契约
-- 工具元数据与参数 Schema 由代码生成，`rscmd schema --json` 可自描述
-- Python 侧只做类型转换与异常映射，不复制业务逻辑
+A Rust toolset for small-model invocation: **single entrypoint, stable JSON envelope, self-describing schema**.
+All business logic lives on the Rust side, exposed through three call paths: CLI, Python bindings and an MCP stdio server.
 
-> 命令缩写以括号标注，例如 `rscmd doctor(d)`、`rscmd run(r)`。
+- 20 built-in tools covering text, data, crypto, system and network
+- GUI frontend does not intrude on the default build: `rscmd reshackw` launches the standalone `rscmd-reshackw` binary
+- Versioned success / error envelopes (`rscmd-result/1` / `rscmd-error/1`) with fixed exit-code semantics
+- `--json` is machine-readable first; human-readable output never pollutes the stdout contract
+- Tool metadata and parameter schemas are generated from code; `rscmd schema --json` is self-describing
+- The Python side only converts types and maps exceptions, never duplicating business logic
 
-## 安装
+> Command shorthands are shown in parentheses, e.g. `rscmd doctor(d)`, `rscmd run(r)`.
 
-### 原生二进制
+## Installation
 
-需要 Rust stable（`rust-version = 1.78`）：
+### Native binary
+
+Requires Rust stable (`rust-version = 1.78`):
 
 ```bash
 cargo build --release -p rscmd-cli
-# 产物：target/release/rscmd（Windows 为 rscmd.exe）
+# Artifact: target/release/rscmd (rscmd.exe on Windows)
 
-# 或安装到 Cargo bin 目录
+# Or install into the Cargo bin directory
 cargo install --path crates/rscmd-cli
 ```
 
-### Python 包
+### Python package
 
-需要 Python 3.10+。已发布的 wheel 可直接安装：
+Requires Python 3.10+. Released wheels can be installed directly:
 
 ```bash
 pip install rscmd
 ```
 
-源码开发态（editable，复用仓库内原生模块）：
+From source in editable mode (reuses the native module in the repo):
 
 ```bash
 uv venv .venv
 uv pip install --python .venv/Scripts/python.exe maturin pytest   # Windows
-# 或：uv pip install --python .venv/bin/python maturin pytest     # Unix
+# or: uv pip install --python .venv/bin/python maturin pytest     # Unix
 maturin develop
 
-# 也可把仓库注册为全局 CLI
+# You can also register the repo as a global CLI
 uv tool install --editable .
 ```
 
-Rust 侧改动后必须重新执行 `maturin develop`，否则 `_native` 会静默运行旧实现；
-`rscmd doctor(d)` 与 `cargo xtask py-fresh-check` 会检查该产物是否过期。
+After any Rust-side change you must run `maturin develop` again, otherwise `_native` silently runs the old implementation;
+`rscmd doctor(d)` and `cargo xtask py-fresh-check` check whether that artifact is stale.
 
-## 快速开始
+## Quick start
 
 ```bash
-rscmd doctor(d)                                  # 环境自检
-rscmd list                                       # 列出工具（别名 l）
-rscmd run(r) case --mode snake HelloWorld        # 推荐入口：run + 工具名
-rscmd case HelloWorld                            # 直达形式（等价）
-rscmd --json run case --mode snake HelloWorld    # 机读信封
-rscmd info(i) case --json                        # 单个工具的完整元数据
-rscmd schema --json                              # 全部工具 + 内建命令 + 全局参数 schema
-rscmd version(v) --json                          # 版本信息
+rscmd doctor(d)                                  # environment self-check
+rscmd list                                       # list tools (alias l)
+rscmd run(r) case --mode snake HelloWorld        # recommended entrypoint: run + tool name
+rscmd case HelloWorld                            # direct form (equivalent)
+rscmd --json run case --mode snake HelloWorld    # machine-readable envelope
+rscmd info(i) case --json                        # full metadata for a single tool
+rscmd schema --json                              # all tools + builtin commands + global arg schema
+rscmd version(v) --json                          # version info
 ```
 
-输出示例：
+Example output:
 
 ```bash
 $ rscmd run case --mode snake HelloWorld
@@ -72,7 +74,7 @@ $ rscmd --json run case --mode snake HelloWorld
 {"schema":"rscmd-result/1","ok":true,"tool":"case","data":{"text":"hello_world"}}
 ```
 
-出错时错误信封固定写 stderr：
+Errors always write the error envelope to stderr:
 
 ```bash
 $ rscmd --json run json_fmt '{'
@@ -81,120 +83,120 @@ $ rscmd --json run json_fmt '{'
  "exit_code":3}
 ```
 
-## 命令一览
+## Commands
 
-### 内建命令
+### Builtin commands
 
-| 命令 | 说明 |
+| Command | Description |
 |---|---|
-| `rscmd run(r) <工具> [参数]` | 运行指定工具（推荐入口） |
-| `rscmd list(l)` | 列出可用工具（`--for-llm` 过滤 GUI 工具） |
-| `rscmd info(i) <工具>` | 查看单个工具的元数据 |
-| `rscmd schema` | 导出全部工具的元数据与参数 Schema |
-| `rscmd version(v)` | 输出版本信息 |
-| `rscmd doctor(d)` | 输出运行环境自检信息 |
-| `rscmd completion <SHELL>` | 生成 bash / zsh / fish / powershell 补全脚本 |
-| `rscmd mcp` | 以 MCP stdio server 模式运行 |
+| `rscmd run(r) <tool> [args]` | Run the given tool (recommended entrypoint) |
+| `rscmd list(l)` | List available tools (`--for-llm` filters out GUI tools) |
+| `rscmd info(i) <tool>` | Show metadata for a single tool |
+| `rscmd schema` | Export metadata and parameter schemas for all tools |
+| `rscmd version(v)` | Print version info |
+| `rscmd doctor(d)` | Print environment self-check info |
+| `rscmd completion <SHELL>` | Generate bash / zsh / fish / powershell completion scripts |
+| `rscmd mcp` | Run as an MCP stdio server |
 
-完整列表见 [docs/commands.md](docs/commands.md)。工具别名（如 `casetool`）仍可调用，
-但帮助与 `Tools:` 分组只展示规范名，别名见 [docs/tools.md](docs/tools.md)。
+See [docs/commands.md](docs/commands.md) for the full list. Tool aliases (e.g. `casetool`) still work,
+but help output and the `Tools:` group only show canonical names; aliases are listed in [docs/tools.md](docs/tools.md).
 
-### 工具
+### Tools
 
-| 域 | 工具 | 说明 |
+| Domain | Tool | Description |
 |---|---|---|
-| text | `case` | 命名风格转换（snake/camel/pascal/kebab） |
-| text | `wc` | 统计行数、词数、字符数与字节数 |
-| text | `regex` | 正则匹配、分组捕获与替换 |
-| data | `csv` | CSV 与 JSON 互转，自动判定表头与分隔符 |
-| data | `json_fmt` | 校验并格式化 JSON，非法输入返回可自纠错误 |
-| data | `stat` | 计数、求和、均值、中位数与分位数 |
-| data | `timestamp` | Unix 秒与 RFC3339 互转，支持固定偏移与日期加减 |
-| data | `toml` | 校验 TOML 并转换为 JSON / YAML |
-| data | `yaml` | 校验 YAML 并转换为 JSON / TOML |
-| crypto | `hash` | 计算文本或文件的 SHA-256 |
-| crypto | `codec` | base64 / hex / URL 文本编解码 |
-| system | `archive` | 把目录打包成 zip（写需 `--confirm`） |
-| system | `env` | 只读查询环境变量，支持名字与前缀过滤 |
-| system | `filedate` | 读取或写入文件修改时间（写需 `--confirm`） |
-| system | `filesearch` | 按文件名 glob 与内容子串检索文件 |
-| system | `path` | 路径规范化、拼接、相对/绝对路径判定 |
-| system | `reshack` | 查看/导出/原位替换 Windows PE 资源 |
-| system | `reshackw` | 启动 reshack GUI（独立二进制 `rscmd-reshackw`） |
-| system | `which` | 在 PATH 中查找可执行文件 |
-| net | `urlcheck` | 探测 URL 的 HTTP 状态码、重定向链与耗时 |
+| text | `case` | Naming-style conversion (snake/camel/pascal/kebab) |
+| text | `wc` | Count lines, words, characters and bytes |
+| text | `regex` | Regex matching, group capture and replacement |
+| data | `csv` | CSV <-> JSON conversion with automatic header and delimiter detection |
+| data | `json_fmt` | Validate and format JSON; invalid input returns a self-correctable error |
+| data | `stat` | Count, sum, mean, median and percentiles |
+| data | `timestamp` | Unix seconds <-> RFC3339 with fixed offset and date arithmetic |
+| data | `toml` | Validate TOML and convert to JSON / YAML |
+| data | `yaml` | Validate YAML and convert to JSON / TOML |
+| crypto | `hash` | Compute the SHA-256 of text or a file |
+| crypto | `codec` | base64 / hex / URL text encode and decode |
+| system | `archive` | Pack a directory into a zip (writes require `--confirm`) |
+| system | `env` | Read-only environment variable lookup with name and prefix filters |
+| system | `filedate` | Read or write file modification time (writes require `--confirm`) |
+| system | `filesearch` | Search files by name glob and content substring |
+| system | `path` | Path normalization, joining, relative/absolute checks |
+| system | `reshack` | Inspect / export / replace Windows PE resources in place |
+| system | `reshackw` | Launch the reshack GUI (standalone `rscmd-reshackw` binary) |
+| system | `which` | Locate executables on PATH |
+| net | `urlcheck` | Probe a URL's HTTP status, redirect chain and latency |
 
-## 全局参数
+## Global arguments
 
-| 参数 | 说明 |
+| Argument | Description |
 |---|---|
-| `--json` | 以 JSON 信封输出结果 |
-| `--quiet` | 人读模式下不输出成功结果 |
-| `--verbose` / `-v` | 在 stderr 输出工具名与耗时跟踪 |
-| `--dry-run` | 仅预演，不产生副作用 |
-| `--confirm` | 确认执行有副作用的操作 |
-| `--workers <N>` | 并行度，0 表示自动 |
-| `--limit <N>` | 结果条数上限，0 表示不限制 |
-| `--timeout <SECONDS>` | 单次调用超时秒数，0 表示不限制 |
+| `--json` | Emit results as a JSON envelope |
+| `--quiet` | Suppress successful results in human-readable mode |
+| `--verbose` / `-v` | Print tool name and timing trace to stderr |
+| `--dry-run` | Rehearse only, produce no side effects |
+| `--confirm` | Confirm an operation with side effects |
+| `--workers <N>` | Parallelism; 0 means automatic |
+| `--limit <N>` | Result cap; 0 means unlimited |
+| `--timeout <SECONDS>` | Per-call timeout in seconds; 0 means unlimited |
 
-全局参数可放在子命令前后。完整 Schema 见 [schema/global.json](schema/global.json)，
-说明见 [docs/global-args.md](docs/global-args.md)。
+Global arguments may appear before or after the subcommand. The full schema lives in [schema/global.json](schema/global.json),
+and the reference in [docs/global-args.md](docs/global-args.md).
 
-## GUI 前端
+## GUI frontend
 
-`rscmd reshackw` 只做「定位 + 拉起」，GUI 本体是独立二进制 `rscmd-reshackw`
-（位于 `crates/rscmd-gui`，默认不参与 CLI / wheel 构建）：
+`rscmd reshackw` only locates and launches; the GUI itself is the standalone `rscmd-reshackw` binary
+(in `crates/rscmd-gui`, excluded from the default CLI / wheel build):
 
 ```bash
-cargo build -p rscmd-gui --features gui   # 产出 target/<profile>/rscmd-reshackw[.exe]
-rscmd reshackw                            # 打开窗口
-rscmd reshackw app.exe                    # 打开时附带文件（当前 POC 仅预览图片）
-RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # 显式指定二进制
+cargo build -p rscmd-gui --features gui   # produces target/<profile>/rscmd-reshackw[.exe]
+rscmd reshackw                            # open the window
+rscmd reshackw app.exe                    # open with a file (current POC previews images only)
+RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # explicit binary path
 ```
 
-定位顺序：`RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；
-找不到时返回 `GUI_UNAVAILABLE`（退出码 1）并提示构建命令。
-该工具标记为 `gui: true`：`list --for-llm` 与 MCP 不会暴露它，Python 侧为 `hidden`。
+Lookup order: `RSCMD_RESHACKW` -> `rscmd-reshackw[.exe]` next to `rscmd`;
+when not found it returns `GUI_UNAVAILABLE` (exit code 1) and prints the build command.
+The tool is marked `gui: true`: `list --for-llm` and MCP do not expose it, and it is `hidden` on the Python side.
 
-## 输出契约
+## Output contract
 
-- 成功：`{"schema":"rscmd-result/1","ok":true,"tool":"<工具>","data":<结果>}`
-- 失败：`{"schema":"rscmd-error/1","ok":false,"tool":"<工具>","kind":"...","code":"...","message":"...","exit_code":<码>}`
-  - 可选字段：`field` / `expected` / `hint`
-- `rscmd doctor(d)` 结论不通过时输出 `ok:false` 的结果信封并退出 5
-- `rscmd list` 的 `data` 为 `{"schema":"rscmd-tools/1","version":"...","tools":[...]}`
-- `rscmd schema` 的 `data` 为 `rscmd-schema/1`，含 `version` / `tools` / `builtins` / `global`
-- 成功结果写 stdout，错误写 stderr；`--verbose` 只写 stderr
+- Success: `{"schema":"rscmd-result/1","ok":true,"tool":"<tool>","data":<result>}`
+- Failure: `{"schema":"rscmd-error/1","ok":false,"tool":"<tool>","kind":"...","code":"...","message":"...","exit_code":<code>}`
+  - Optional fields: `field` / `expected` / `hint`
+- When `rscmd doctor(d)` finds a problem it emits a result envelope with `ok:false` and exits 5
+- `rscmd list` emits `data` as `{"schema":"rscmd-tools/1","version":"...","tools":[...]}`
+- `rscmd schema` emits `data` as `rscmd-schema/1` with `version` / `tools` / `builtins` / `global`
+- Successful results go to stdout, errors go to stderr; `--verbose` writes to stderr only
 
-退出码：
+Exit codes:
 
-| 退出码 | kind | 含义 |
+| Exit code | kind | Meaning |
 |---|---|---|
-| 0 | — | 成功 |
-| 1 | `runtime` | 运行期失败（IO、网络、超时、锁等） |
-| 2 | `usage` | 用法错误（未知命令、缺少参数、未确认写操作） |
-| 3 | `invalid_input` | 输入非法（参数、JSON、编码、正则、解析失败等） |
-| 4 | `not_found` | 目标不存在（工具名等） |
-| 5 | `check_failed` | 检查类命令结论不通过（如 `doctor`） |
-| 130 | `interrupted` | 用户按下 Ctrl+C |
+| 0 | — | Success |
+| 1 | `runtime` | Runtime failure (IO, network, timeout, lock, etc.) |
+| 2 | `usage` | Usage error (unknown command, missing argument, unconfirmed write) |
+| 3 | `invalid_input` | Invalid input (argument, JSON, encoding, regex, parse failure, etc.) |
+| 4 | `not_found` | Target does not exist (tool name, etc.) |
+| 5 | `check_failed` | A check command did not pass (e.g. `doctor`) |
+| 130 | `interrupted` | User pressed Ctrl+C |
 
-错误码到大类的映射集中在 `ERROR_CODE_KINDS`，新增错误码必须登记。
+The mapping from error code to category lives in `ERROR_CODE_KINDS`; every new error code must be registered.
 
-## Python 绑定
+## Python bindings
 
 ```python
 import rscmd
 
 rscmd.__version__
-tools = rscmd.tools()                                  # 全部工具摘要
-meta = rscmd.describe("case")                          # 单个工具完整元数据
+tools = rscmd.tools()                                  # summaries of all tools
+meta = rscmd.describe("case")                          # full metadata for a single tool
 text = rscmd.invoke("case", {"text": "HelloWorld", "mode": "snake"})
-envelope = rscmd.run_argv(["--json", "doctor"])        # 按 CLI 语义调用
-code, stdout, stderr = rscmd.cli_main(["version"])     # CLI 级入口
+envelope = rscmd.run_argv(["--json", "doctor"])        # invoke with CLI semantics
+code, stdout, stderr = rscmd.cli_main(["version"])     # CLI-level entrypoint
 ```
 
-失败时抛出 `rscmd.RscmdError`，可通过 `.code` / `.kind` / `.exit_code` /
-`.field` / `.expected` / `.hint` 读取结构化字段。
+Failures raise `rscmd.RscmdError`, with structured fields available via `.code` / `.kind` / `.exit_code` /
+`.field` / `.expected` / `.hint`.
 
 ```python
 try:
@@ -205,79 +207,79 @@ except rscmd.RscmdError as err:
     assert err.exit_code == 3
 ```
 
-## MCP 与补全
+## MCP and completions
 
 ```bash
-# MCP stdio server：逐行 JSON-RPC，支持 initialize / ping / tools/list / tools/call
+# MCP stdio server: line-delimited JSON-RPC, supports initialize / ping / tools/list / tools/call
 rscmd mcp
 
-# shell 补全
+# shell completions
 rscmd completion bash        > rscmd.bash
 rscmd completion zsh         > _rscmd
 rscmd completion fish        > rscmd.fish
 rscmd completion powershell  > rscmd.ps1
 ```
 
-MCP 只暴露有 JSON 入口的非 GUI 工具，`inputSchema` 直接复用工具 Schema，
-协议版本 2025-06-18。Rust 二进制与 Python console script 共用同一套 stdio 循环，
-venv 内也可直接 `python -m rscmd mcp`；`rscmd.cli_main` 一次性返回输出，不承载该模式。
+MCP only exposes non-GUI tools that have a JSON entrypoint; `inputSchema` reuses the tool schema directly,
+protocol version 2025-06-18. The Rust binary and the Python console script share the same stdio loop,
+so `python -m rscmd mcp` also works inside a venv; `rscmd.cli_main` returns output in one shot and does not support this mode.
 
-## 开发
+## Development
 
 ```bash
-make help            # 查看全部目标
-make check-docs      # L0：文档生成物 + ADR 校验
-make check-fast      # L1：fmt + clippy + 注册表/架构/文档/schema/deny/machete
-make flow            # L2：check-fast + cargo test
-make check           # 全量：check-fast + Rust 测试 + pytest + mypy
-make cov             # llvm-cov，行覆盖率阈值 95%
-make gen-docs        # 重新生成 docs/*.md
-make gen-schema      # 重新生成 schema/*.json
-make wheel-smoke     # 构建 wheel、装进 .venv 并冒烟
-make bench           # 启动时间基准回归
-make version-check   # tag / Cargo / wheel / CHANGELOG 版本一致
-make push            # 推送所有 remote 与 tags（不自动打 tag）
+make help            # list all targets
+make check-docs      # L0: generated docs + ADR validation
+make check-fast      # L1: fmt + clippy + registry/arch/docs/schema/deny/machete
+make flow            # L2: check-fast + cargo test
+make check           # full: check-fast + Rust tests + pytest + mypy
+make cov             # llvm-cov, 95% line coverage threshold
+make gen-docs        # regenerate docs/*.md
+make gen-schema      # regenerate schema/*.json
+make wheel-smoke     # build the wheel, install into .venv and smoke test
+make bench           # startup-time benchmark regression
+make version-check   # tag / Cargo / wheel / CHANGELOG version consistency
+make push            # push all remotes and tags (never creates tags)
 ```
 
-完整门禁还需要 `cargo-nextest`、`cargo-llvm-cov`、`maturin`、`pytest`、`mypy`。
-门禁分级与提交约定见 [AGENTS.md](AGENTS.md)，AI 驱动开发流见
-[docs/AI_DRIVEN_DEV_FLOW.md](docs/AI_DRIVEN_DEV_FLOW.md)。
+The full gate also needs `cargo-nextest`, `cargo-llvm-cov`, `maturin`, `pytest` and `mypy`.
+Gate tiers and commit conventions are in [AGENTS.md](AGENTS.md); the AI-driven development flow is in
+[docs/AI_DRIVEN_DEV_FLOW.md](docs/AI_DRIVEN_DEV_FLOW.md).
 
-### 生成物
+### Generated artifacts
 
-以下文件由工具生成，**请勿手改**：
+The following files are generated, **do not edit them by hand**:
 
-- `docs/*.md`：`make gen-docs`
-- `schema/*.json`：`make gen-schema`
-- `python/rscmd/_native.*`：`maturin develop`
+- `docs/*.md`: `make gen-docs`
+- `schema/*.json`: `make gen-schema`
+- `python/rscmd/_native.*`: `maturin develop`
 
-### 目录结构
+### Directory layout
 
 ```
 crates/
-  rscmd-cli        可执行入口（dispatch / 信号 / MCP）
-  rscmd-core       调度、信封、错误、schema、内建命令
-  rscmd-py         PyO3 绑定
-  rscmd-runtime    fs / net / proc / lock / cache / home 等运行时
-  rscmd-tools      工具聚合与 feature 开关
-  rscmd-tool-*     text / data / crypto / system / net 工具域
-  xtask            构建、生成物与门禁脚本
-python/rscmd/      Python 包与原生边界类型声明
-schema/            生成的 JSON Schema
-docs/              生成文档 + ADR / 需求 / 方案
-tests/py/          Python 契约测试
+  rscmd-cli        executable entrypoint (dispatch / signals / MCP)
+  rscmd-core       scheduling, envelopes, errors, schema, builtin commands
+  rscmd-py         PyO3 bindings
+  rscmd-runtime    fs / net / proc / lock / cache / home runtime helpers
+  rscmd-tools      tool aggregation and feature switches
+  rscmd-tool-*     text / data / crypto / system / net tool domains
+  xtask            build, generated artifacts and gate scripts
+python/rscmd/      Python package and native boundary type declarations
+schema/            generated JSON Schema
+docs/              generated docs + ADR / requirements / analysis
+tests/py/          Python contract tests
 ```
 
-## 文档
+## Documentation
 
-- [docs/README.md](docs/README.md) — 文档索引（自动生成）
-- [docs/commands.md](docs/commands.md) — 命令一览
-- [docs/tools.md](docs/tools.md) — 工具元数据与别名
-- [docs/global-args.md](docs/global-args.md) — 全局参数
-- [docs/schemas.md](docs/schemas.md) — 工具参数 Schema 摘要
-- [docs/adr/README.md](docs/adr/README.md) — 架构决策记录
-- [CHANGELOG.md](CHANGELOG.md) — 更新日志
+- [docs/README.md](docs/README.md) — documentation index (auto-generated)
+- [docs/commands.md](docs/commands.md) — command reference
+- [docs/tools.md](docs/tools.md) — tool metadata and aliases
+- [docs/global-args.md](docs/global-args.md) — global arguments
+- [docs/schemas.md](docs/schemas.md) — tool parameter schema summary
+- [docs/adr/README.md](docs/adr/README.md) — architecture decision records
+- [CHANGELOG.md](CHANGELOG.md) — changelog
 
-## 许可
+## License
 
 MIT
