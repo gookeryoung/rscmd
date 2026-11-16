@@ -31,6 +31,17 @@
 | `size_limit` | integer | `10485760` | - | 自动机大小上限（字节），0 表示不限制 |
 | `text` | — | `null` | - | 待匹配文本（与 --file 二选一） |
 
+## CsvArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `delimiter` | string | `"auto"` | - | 分隔符：`auto`（默认）、`comma`、`semicolon`、`tab`、`pipe` 或单个 ASCII 字符 |
+| `input` | — | `null` | - | 输入文件路径（与 --text 二选一） |
+| `limit` | — | `null` | - | 最多输出的数据行数，0 或不提供表示不限制；CLI 走全局 `--limit`（ToolCtx.limit） |
+| `no_header` | boolean | `false` | - | CSV→JSON：首行不是表头，按数组输出 |
+| `text` | — | `null` | - | 直接传入文本（与 INPUT 二选一） |
+| `to` | string | `"json"` | - | 转换方向：`json` = CSV→JSON，`csv` = JSON→CSV |
+
 ## JsonFmtArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

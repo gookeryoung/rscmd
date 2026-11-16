@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CsvArgs",
+  "type": "object",
+  "properties": {
+    "delimiter": {
+      "description": "分隔符：`auto`（默认）、`comma`、`semicolon`、`tab`、`pipe` 或单个 ASCII 字符",
+      "type": "string",
+      "default": "auto"
+    },
+    "input": {
+      "description": "输入文件路径（与 --text 二选一）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "limit": {
+      "description": "最多输出的数据行数，0 或不提供表示不限制；CLI 走全局 `--limit`（ToolCtx.limit）",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "default": null,
+      "minimum": 0
+    },
+    "no_header": {
+      "description": "CSV→JSON：首行不是表头，按数组输出",
+      "type": "boolean",
+      "default": false
+    },
+    "text": {
+      "description": "直接传入文本（与 INPUT 二选一）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "to": {
+      "description": "转换方向：`json` = CSV→JSON，`csv` = JSON→CSV",
+      "type": "string",
+      "default": "json"
+    }
+  }
+}

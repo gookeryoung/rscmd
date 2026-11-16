@@ -79,6 +79,15 @@
   `{count, sum, mean, median, percentiles}`；分位数用 `p/100*(n-1)` 线性插值，
   0/100 对应最小/最大值，`--percentile` 可重复或逗号分隔。空输入、非有限数值、
   超出 0–100 的分位数返回 `INVALID_ARGS`（field 分别为 `values`/`percentiles`）。
+- 新增工具 `csv`（data 域，别名 `csvtool`）：CSV↔JSON 双向转换，`--to json`
+  （默认）输出 `{direction, delimiter, has_header, count, truncated, rows}`，
+  `--to csv` 输出 `{direction, delimiter, has_header, count, truncated, csv}`。
+  表头自动判定（首行非空、唯一且非数字时视为表头，`--no-header` 可关闭）；
+  分隔符 `auto` 按首行引号外出现次数在 `,` `;` `\t` `|` 中择多，也可显式指定。
+  支持引号内换行/转义、CRLF 与 BOM；非 UTF-8 输入返回 `INVALID_ENCODING`。
+  对象转 CSV 时列按列名字典序、`null`/缺失列写空、嵌套值写 JSON 文本。
+  条数上限沿用全局 `--limit`（`ToolCtx.limit`），JSON 入口另有同义 `limit` 字段。
+  依赖新增 `csv` crate（v1，默认 features，无额外启用项）。
 
 ### 变更
 

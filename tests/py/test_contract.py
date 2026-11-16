@@ -25,7 +25,16 @@ def test_tools_contains_p0_tools() -> None:
         "which",
         "filesearch",
         "stat",
+        "csv",
     } <= names
+
+
+def test_invoke_csv(tmp_path: Path) -> None:
+    path = tmp_path / "data.csv"
+    path.write_text("a,b\n1,2\n", encoding="utf-8")
+    out = rscmd.invoke("csv", {"input": str(path)})
+    assert out["count"] == 1
+    assert out["rows"][0]["b"] == "2"
 
 
 def test_invoke_stat() -> None:
