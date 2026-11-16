@@ -2,6 +2,8 @@
 
 use std::time::Duration;
 
+use crate::errors::RscmdError;
+
 #[derive(Debug, Clone, Default)]
 pub struct ToolCtx {
     pub dry_run: bool,
@@ -45,6 +47,18 @@ impl ToolCtx {
     pub fn timeout_or(&self, fallback: Duration) -> Duration {
         self.timeout.unwrap_or(fallback)
     }
+
+    /// 写入/破坏性动作的确认闸门：`--dry-run` 直接放行（工具不得真正改动），
+    /// 否则必须显式 `--confirm`，缺失时返回 `CONFIRM_REQUIRED`（usage，退出码 2）。
+    pub fn require_confirm(&self, action: &str) -> Result<(), RscmdError> {
+        if self.dry_run || self.confirm {
+            return Ok(());
+        }
+        Err(
+            RscmdError::coded("CONFIRM_REQUIRED", format!("{action}需要确认"))
+                .with_hint("确认无风险后加 --confirm；只想查看计划加 --dry-run"),
+        )
+    }
 }
 
 #[cfg(test)]
@@ -70,5 +84,33 @@ mod tests {
             ctx.timeout_or(Duration::from_secs(30)),
             Duration::from_secs(5)
         );
+    }
+
+    #[test]
+    fn confirm_gate_requires_confirm() {
+        let err = ToolCtx::default().require_confirm("写入文件").unwrap_err();
+        assert_eq!(err.code, "CONFIRM_REQUIRED");
+        assert_eq!(err.kind, crate::errors::ErrorKind::Usage);
+        assert_eq!(err.exit_code(), 2);
+        assert!(err.hint.is_some());
+    }
+
+    #[test]
+    fn confirm_gate_passes_with_confirm() {
+        let ctx = ToolCtx {
+            confirm: true,
+            ..ToolCtx::default()
+        };
+        assert!(ctx.require_confirm("写入文件").is_ok());
+    }
+
+    #[test]
+    fn confirm_gate_skipped_in_dry_run() {
+        let ctx = ToolCtx {
+            dry_run: true,
+            ..ToolCtx::default()
+        };
+        assert!(!ctx.confirm);
+        assert!(ctx.require_confirm("写入文件").is_ok());
     }
 }

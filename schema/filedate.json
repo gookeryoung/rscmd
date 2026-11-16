@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FiledateArgs",
+  "type": "object",
+  "properties": {
+    "path": {
+      "description": "目标文件路径",
+      "type": "string"
+    },
+    "set": {
+      "description": "写入修改时间：Unix 秒（可为负数）或 RFC3339；不给出则只读取",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "path"
+  ]
+}

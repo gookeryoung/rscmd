@@ -28,6 +28,7 @@ def test_tools_contains_p0_tools() -> None:
         "csv",
         "timestamp",
         "urlcheck",
+        "filedate",
     } <= names
 
 
@@ -42,6 +43,15 @@ def test_invoke_timestamp() -> None:
     out = rscmd.invoke("timestamp", {"input": "2024-02-28T12:00:00Z", "add": "1d"})
     assert out["rfc3339"] == "2024-02-29T12:00:00Z"
     assert out["offset"] == "+00:00"
+
+
+def test_invoke_filedate_reads_mtime(tmp_path: Path) -> None:
+    path = tmp_path / "stamp.txt"
+    path.write_text("x", encoding="utf-8")
+    out = rscmd.invoke("filedate", {"path": str(path)})
+    assert out["path"] == str(path)
+    assert out["mtime_unix"] > 0
+    assert out["rfc3339"].endswith("Z")
 
 
 def test_invoke_csv(tmp_path: Path) -> None:

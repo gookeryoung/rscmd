@@ -119,3 +119,43 @@ fn which_rejects_empty_program() {
     assert_eq!(err.code, "INVALID_ARGS");
     assert_eq!(err.exit_code(), 3);
 }
+
+#[test]
+fn filedate_reads_and_writes_whole_second_mtime() {
+    let dir = temp_dir().unwrap();
+    let path = dir.path().join("stamp.txt");
+    std::fs::write(&path, "x").unwrap();
+    let display = path.to_string_lossy().into_owned();
+    let def = rscmd_tool_system::filedate::def();
+    let run = def.run_json.expect("filedate 应暴露 JSON 入口");
+
+    let mut ctx = ToolCtx {
+        confirm: true,
+        ..ToolCtx::default()
+    };
+    let written = run(&mut ctx, &json!({"path": display, "set": 1700000000})).unwrap();
+    assert_eq!(written["mtime_unix"], 1700000000);
+    assert_eq!(written["mtime_ns"], 0);
+    assert_eq!(written["rfc3339"], "2023-11-14T22:13:20Z");
+    assert_eq!(written["dry_run"], json!(false));
+
+    let read = run(&mut ToolCtx::default(), &json!({"path": display})).unwrap();
+    assert_eq!(read["mtime_unix"], 1700000000);
+    assert!(!read.as_object().unwrap().contains_key("dry_run"));
+}
+
+#[test]
+fn filedate_write_without_confirm_is_rejected() {
+    let dir = temp_dir().unwrap();
+    let path = dir.path().join("stamp.txt");
+    std::fs::write(&path, "x").unwrap();
+    let def = rscmd_tool_system::filedate::def();
+    let run = def.run_json.expect("filedate 应暴露 JSON 入口");
+    let err = run(
+        &mut ToolCtx::default(),
+        &json!({"path": path.to_string_lossy(), "set": 1700000000}),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "CONFIRM_REQUIRED");
+    assert_eq!(err.exit_code(), 2);
+}

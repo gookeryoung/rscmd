@@ -106,6 +106,14 @@
   锁文件内的 pid/获取时间仅供排障，持有者 Drop 时删除（panic 亦释放，进程被强杀则残留）。
   下载缓存写同一键时用它串行化（500 ms 上限，拿不到锁放弃本次写入，下载结果不受影响）。
 - `ERROR_CODE_KINDS` 登记 `LOCK_BUSY` / `LOCK_TIMEOUT` / `LOCK_UNAVAILABLE`（runtime，退出码 1）。
+- 新增工具 `filedate`（system 域，别名 `filedatetool`）：读取或写入文件修改时间，输出
+  `{path, mtime_unix, mtime_ns, rfc3339}`；`mtime_unix` 为整秒（可为负），`mtime_ns` 为
+  秒内纳秒分量（0–999,999,999），`rfc3339` 一律按 UTC 渲染，不读取系统时区。
+  `--set <UNIX秒|RFC3339>` 写入 mtime，必须显式 `--confirm`；`--dry-run` 只报告计划值、
+  不改动文件；写入后重新读取 mtime 作为结果。未新增依赖（复用 workspace 已有的 `time`，
+  仅 parsing/formatting）；Python 绑定无 `--confirm`，因此入口为只读。
+- `ERROR_CODE_KINDS` 登记 `CONFIRM_REQUIRED`（usage，退出码 2），并新增
+  `ToolCtx::require_confirm`：`--dry-run` 直接放行，否则缺少 `--confirm` 时返回该错误码。
 
 ### 变更
 

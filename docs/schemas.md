@@ -79,6 +79,13 @@
 | `mode` | string | `"base64"` | - | 编解码方式：base64/hex/url |
 | `text` | string | `—` | ✅ | 待编码或解码的文本 |
 
+## FiledateArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `path` | string | `—` | ✅ | 目标文件路径 |
+| `set` | — | `null` | - | 写入修改时间：Unix 秒（可为负数）或 RFC3339；不给出则只读取 |
+
 ## FilesearchArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |
