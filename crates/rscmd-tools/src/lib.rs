@@ -38,6 +38,8 @@ mod tests {
         #[cfg(feature = "data")]
         assert!(names.contains(&"timestamp"));
         #[cfg(feature = "data")]
+        assert!(names.contains(&"toml"));
+        #[cfg(feature = "data")]
         assert!(names.contains(&"csv"));
         #[cfg(feature = "data")]
         assert!(names.contains(&"stat"));

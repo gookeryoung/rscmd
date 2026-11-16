@@ -30,6 +30,7 @@ def test_tools_contains_p0_tools() -> None:
         "urlcheck",
         "filedate",
         "env",
+        "toml",
     } <= names
 
 
@@ -74,6 +75,14 @@ def test_run_argv_archive_dry_run(tmp_path: Path) -> None:
     assert envelope["data"]["dry_run"] is True
     assert envelope["data"]["files"] == ["a.txt"]
     assert not output.exists()
+
+
+def test_invoke_toml_converts(tmp_path: Path) -> None:
+    path = tmp_path / "sample.toml"
+    path.write_text('title = "demo"\n', encoding="utf-8")
+    out = rscmd.invoke("toml", {"file": str(path)})
+    assert out["to"] == "json"
+    assert '"title": "demo"' in out["text"]
 
 
 def test_invoke_csv(tmp_path: Path) -> None:

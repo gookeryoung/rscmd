@@ -11,6 +11,7 @@
 | `json_fmt` | `jsonfmt` | 校验并格式化 JSON；非法输入返回可自纠的错误 | `none` | `structured` |
 | `stat` | `stattool` | 数值统计：计数、求和、均值、中位数与分位数 | `none` | `structured` |
 | `timestamp` | `timestamptool` | Unix 秒与 RFC3339 互转，支持固定偏移时区与日期加减 | `none` | `structured` |
+| `toml` | `tomltool` | 校验 TOML 并转换为 JSON 或 YAML | `read` | `structured` |
 | `hash` | `hashtool` | 计算文本或文件的 SHA-256（hex） | `read` | `structured` |
 | `codec` | `codetool` | 文本编解码：base64 / hex / URL | `none` | `structured` |
 | `archive` | `archivetool` | 把目录打包成 zip（不加密，写需 --confirm，--dry-run 列清单） | `write` | `argv_only` |

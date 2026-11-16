@@ -128,6 +128,15 @@
   仅 `deflate-flate2` + flate2 `rust_backend`，其余压缩与加密全部关闭）。该工具只有 argv 入口
   （`python=argv_only`，无 JSON 调用入口，但保留参数 schema 供文档）：写操作需要 `--confirm`，
   而 JSON 调用通道没有 confirm/dry-run 参数。
+- 新增工具 `toml`（data 域，别名 `tomltool`）：校验 TOML 文件并转换为 JSON（默认）或 YAML，
+  输出 `{path, to, text}`；`--check` 只校验语法、输出 `{path, ok: true}`（与 `--to` 互斥）。
+  输入按 UTF-8 读取并去掉可选 BOM，非 UTF-8 返回 `INVALID_ENCODING`；日期时间按 TOML 原文
+  渲染为字符串、不读系统时区，跨机器结果一致；`inf`/`nan` 无法用 JSON 表示、
+  语法错误均返回 `PARSE_FAILED`（field 为 `path`）并带 hint。
+  依赖新增 `toml` v0.9 与 `serde_norway` v0.9（YAML 渲染，后续 `yaml` 工具复用；实测 release
+  二进制由 6,998,528 字节增至 7,289,856 字节，+291,328 字节 ≈ +0.28 MiB）。
+- `ERROR_CODE_KINDS` 登记 `PARSE_FAILED`（invalid_input，退出码 3）：输入文件语法非法，
+  或源格式中存在目标格式无法表示的取值（TOML `inf`/`nan`、YAML 非字符串键与重复键等）。
 
 ### 变更
 

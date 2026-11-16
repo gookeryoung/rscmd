@@ -102,3 +102,43 @@ fn stat_rejects_out_of_range_percentile() {
     assert_eq!(err.exit_code(), 3);
     assert_eq!(err.field.as_deref(), Some("percentiles"));
 }
+
+#[test]
+fn toml_converts_file_to_json_and_yaml() {
+    let dir = rscmd_runtime::fs::temp_dir().unwrap();
+    let path = dir.path().join("sample.toml");
+    std::fs::write(&path, "title = \"demo\"\n[db]\nport = 5432\n").unwrap();
+    let display = path.to_string_lossy().into_owned();
+    let def = rscmd_tool_data::toml::def();
+    let run = def.run_json.expect("toml 应暴露 JSON 入口");
+
+    let json_out = run(&mut ToolCtx::default(), &json!({"file": display})).unwrap();
+    assert_eq!(json_out["to"], "json");
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_out["text"].as_str().unwrap()).unwrap();
+    assert_eq!(parsed["db"]["port"], 5432);
+
+    let yaml_out = run(
+        &mut ToolCtx::default(),
+        &json!({"file": display, "to": "yaml"}),
+    )
+    .unwrap();
+    assert!(yaml_out["text"].as_str().unwrap().contains("port: 5432"));
+}
+
+#[test]
+fn toml_parse_failure_is_reported_with_path() {
+    let dir = rscmd_runtime::fs::temp_dir().unwrap();
+    let path = dir.path().join("bad.toml");
+    std::fs::write(&path, "key = [1,\n").unwrap();
+    let def = rscmd_tool_data::toml::def();
+    let run = def.run_json.expect("toml 应暴露 JSON 入口");
+    let err = run(
+        &mut ToolCtx::default(),
+        &json!({"file": path.to_string_lossy()}),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "PARSE_FAILED");
+    assert_eq!(err.exit_code(), 3);
+    assert_eq!(err.field.as_deref(), Some("path"));
+}

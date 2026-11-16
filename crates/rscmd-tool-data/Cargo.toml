@@ -15,6 +15,8 @@ serde_json = { workspace = true }
 schemars = { workspace = true }
 csv = { workspace = true }
 time = { workspace = true }
+toml = { workspace = true }
+serde_norway = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }

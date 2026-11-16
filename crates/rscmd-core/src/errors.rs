@@ -27,6 +27,7 @@ pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
     ("INVALID_JSON", ErrorKind::InvalidInput),
     ("INVALID_ENCODING", ErrorKind::InvalidInput),
     ("INVALID_REGEX", ErrorKind::InvalidInput),
+    ("PARSE_FAILED", ErrorKind::InvalidInput),
     // 运行期失败
     ("TIMEOUT", ErrorKind::Runtime),
     ("IO", ErrorKind::Runtime),

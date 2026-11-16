@@ -64,6 +64,14 @@
 | `input` | string | `—` | ✅ | Unix 秒（可为负数）或 RFC3339 时间 |
 | `offset` | string | `"+00:00"` | - | 输出时区偏移：`+08:00`、`-05:30`、`Z` 或 `utc`；不读系统时区 |
 
+## TomlArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `check` | boolean | `false` | - | 只校验语法，不输出转换结果 |
+| `file` | string | `—` | ✅ | 待读取的 TOML 文件（UTF-8，可带 BOM） |
+| `to` | — | `null` | - | 输出格式：json（默认）或 yaml |
+
 ## HashArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |
