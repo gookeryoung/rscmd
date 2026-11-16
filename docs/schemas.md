@@ -35,3 +35,11 @@
 | `file` | — | `null` | - | 读取文件内容计算摘要（与 TEXT 二选一） |
 | `text` | — | `null` | - | 待计算摘要的文本（与 --file 二选一） |
 
+## CodecArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `decode` | boolean | `false` | - | 解码（默认编码） |
+| `mode` | string | `"base64"` | - | 编解码方式：base64/hex/url |
+| `text` | string | `—` | ✅ | 待编码或解码的文本 |
+

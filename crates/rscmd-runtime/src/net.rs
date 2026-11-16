@@ -28,6 +28,11 @@ where
         .join("&")
 }
 
+/// URL 文本编码：按 `application/x-www-form-urlencoded` 规则转义，空格转 `%20`。
+pub fn url_encode(text: &str) -> String {
+    urlencoding::encode(text).into_owned()
+}
+
 /// URL 解码。
 pub fn decode(s: &str) -> Result<String, std::string::FromUtf8Error> {
     urlencoding::decode(s).map(|cow| cow.into_owned())
@@ -394,6 +399,12 @@ mod tests {
         let encoded = urlencoding::encode("hello 你好").into_owned();
         let decoded = decode(&encoded).unwrap();
         assert_eq!(decoded, "hello 你好");
+    }
+
+    #[test]
+    fn url_encode_escapes_spaces_and_non_ascii() {
+        assert_eq!(url_encode("a b/c"), "a%20b%2Fc");
+        assert_eq!(decode(&url_encode("你好 ok")).unwrap(), "你好 ok");
     }
 
     #[test]

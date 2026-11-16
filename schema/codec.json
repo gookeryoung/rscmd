@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "CodecArgs",
+  "type": "object",
+  "properties": {
+    "decode": {
+      "description": "解码（默认编码）",
+      "type": "boolean",
+      "default": false
+    },
+    "mode": {
+      "description": "编解码方式：base64/hex/url",
+      "type": "string",
+      "default": "base64"
+    },
+    "text": {
+      "description": "待编码或解码的文本",
+      "type": "string"
+    }
+  },
+  "required": [
+    "text"
+  ]
+}

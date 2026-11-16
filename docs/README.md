@@ -37,5 +37,5 @@ CI 的 `python` job 跑 mypy 与 pytest，`wheel-smoke` job 在三平台构建 w
 
 ## 当前状态
 
-- 工具数量：**4**
-- Schema 文件：`schema/` 下 6 个 `.json`
+- 工具数量：**5**
+- Schema 文件：`schema/` 下 7 个 `.json`

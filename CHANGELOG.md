@@ -46,6 +46,12 @@
   默认 TTL 7 天、256 MiB / 1024 条容量上限与写后淘汰；损坏、过期、孤立文件自动清理。
   `net::download_with_cache` 命中不重复下载，未启用或目录不可写时静默降级为直接下载。
   纯新增能力，现有工具行为与 JSON 契约不变。
+- `ERROR_CODE_KINDS` 登记 `INVALID_ENCODING`（invalid_input，退出码 3），用于编解码输入非法
+  或解码结果不是有效 UTF-8。
+- 新增工具 `codec`（crypto 域，别名 `codetool`）：base64 / hex / URL 文本编解码，
+  `--mode` 选择方式、`--decode` 反向；base64 与 hex 为手写实现（不新增依赖），
+  URL 编解码复用既有 `urlencoding`。输出固定为 `{mode, direction, text, bytes}`，
+  CLI 与 `--json` 共用同一结果信封。
 
 ### 变更
 
