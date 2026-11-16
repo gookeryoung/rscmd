@@ -187,7 +187,7 @@ mod tests {
         let (prog, args) = echo_cmd("hello");
         let mut cmd = Command::new(prog);
         cmd.args(&args);
-        let out = run(&mut cmd, Duration::from_secs(2), 1024 * 1024).unwrap();
+        let out = run(&mut cmd, Duration::from_secs(10), 1024 * 1024).unwrap();
         assert!(out.success());
         assert!(out.stdout_text().contains("hello"));
     }
@@ -201,12 +201,13 @@ mod tests {
         assert_eq!(err.kind(), io::ErrorKind::TimedOut);
     }
 
+    /// 输出类用例与超时精度无关，给足 10s：Windows CI 上 PowerShell 冷启动可能超过 2s。
     #[test]
     fn run_does_not_timeout_on_fast_command() {
         let (prog, args) = echo_cmd("quick");
         let mut cmd = Command::new(prog);
         cmd.args(&args);
-        let out = run(&mut cmd, Duration::from_secs(5), 1024 * 1024).unwrap();
+        let out = run(&mut cmd, Duration::from_secs(10), 1024 * 1024).unwrap();
         assert!(out.success());
         assert!(out.stdout_text().contains("quick"));
     }
@@ -216,7 +217,7 @@ mod tests {
         let (prog, args) = echo_cmd(&"x".repeat(10000));
         let mut cmd = Command::new(prog);
         cmd.args(&args);
-        let out = run(&mut cmd, Duration::from_secs(2), 1024).unwrap();
+        let out = run(&mut cmd, Duration::from_secs(10), 1024).unwrap();
         assert!(out.stdout.len() <= 1024, "max_bytes 应截断输出");
     }
 
@@ -228,7 +229,7 @@ mod tests {
         let mut lines = Vec::new();
         run_streaming(
             &mut cmd,
-            Duration::from_secs(2),
+            Duration::from_secs(10),
             1024 * 1024,
             |l| lines.push(l.to_string()),
             |_| {},
