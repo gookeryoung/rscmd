@@ -227,6 +227,9 @@ fn detect_console_code_page() -> Option<u32> {
 }
 
 /// 从 `chcp` 输出里取代码页数字（中英文界面的前缀不同，只认最后一个数字段）。
+///
+/// 仅 Windows 的探测路径与单测会用到；其他平台显式收窄 cfg，避免 `-D dead-code` 报警。
+#[cfg(any(windows, test))]
 fn parse_code_page(text: &str) -> Option<u32> {
     text.split(|c: char| !c.is_ascii_digit())
         .rfind(|piece| !piece.is_empty())?
