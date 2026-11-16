@@ -1,4 +1,4 @@
-# AI 自动驱动开发流（fcmd）
+# AI 自动驱动开发流（rscmd）
 
 > 目标：把「需求意图 → 方案 → 代码 → 测试 → 发布」全流程交给 AI 编排，由**机器门禁**裁定对错。
 
@@ -9,7 +9,7 @@
 | 门禁即裁判 | AI 不声称「做完了」，只看命令退出码：`make check-docs` / `check-fast` / `flow` / `check`、CI |
 | 阶段化 + 卡点 | 每阶段：AI 动作 → 产出物 → 客观门禁 →（人类）审批点 |
 | 失败自愈闭环 | 门禁失败输出回灌 AI → 定位修复 → 重跑，直到全绿（见 [AGENTS.md](../AGENTS.md)） |
-| 上下文常驻 | [AGENTS.md](../AGENTS.md)（门禁分级 + 开工/收工）、`docs/adr/`（决策与交接）作为每轮必读 |
+| 上下文常驻 | [AGENTS.md](../AGENTS.md)（门禁分级 + 开工/收工）、[docs/adr/](adr/README.md)（决策与交接）作为每轮必读 |
 
 流水线：
 
@@ -24,10 +24,10 @@
 |---|---|---|---|---|---|
 | A 需求意图 | 用户口语需求 | 需求拆句（C1..Cn）、粗查影响面 | 需求卡片 `docs/requirements/NNNN-*.md` | 每条需求句有 C 编号，未决问题清零 | ✅ 需求确认 |
 | B 方案制定 | 需求卡片 | 逐条核对代码、定不变量、收决策 D 表、分期 | ADR `docs/adr/NNNN-*.md`（长期决策才写） | 约束逐条有落点、D 表无「待定」 | ✅ 方案评审 |
-| C 代码编写 | ADR / 需求卡片 | 按 P0→P1→P2 小步实现，每期回填 ADR 落地状态 | `src/fcmd/**` | `make check-fast` | — |
-| D 测试编写 | 实现同轮 | 单测 / CLI 集成 | `tests/test_*.py` | `make test` → `make cov`（≥95%） | — |
-| E 集成与文档 | 全绿 | 更新 README / docs、回填 ADR 交接、bump 版本 | README、docs、`.bumpversion.toml` | `make check` + CI | — |
-| F 推送与发布 | 评审通过 | 推全部 remote、打 tag | PyPI 包 + GitHub Release | `make push` + [release.yml](../.github/workflows/release.yml) | ✅ 上线 tag |
+| C 代码编写 | ADR / 需求卡片 | 按 P0→P1→P2 小步实现，每期回填 ADR 落地状态 | `crates/**`、`python/**` | `make check-fast` | — |
+| D 测试编写 | 实现同轮 | Rust 单测 / 集成测试、Python 契约测试 | `crates/*/tests/*.rs`、`tests/py/*.py` | `make test` → `make cov`（≥95%） | — |
+| E 集成与文档 | 全绿 | 更新 README / docs、回填 ADR 交接、同步版本与 CHANGELOG | README、`docs/*`、`CHANGELOG.md` | `make check` + CI | — |
+| F 推送与发布 | 评审通过 | 推全部 remote、打 tag | wheel + GitHub Release | `make push` + [release.yml](../.github/workflows/release.yml) | ✅ 上线 tag |
 
 ## 3. 阶段详解
 
@@ -51,51 +51,61 @@
 - 决策结论写进 D1..Dn 台账（含被否决项与代码落点）；
 - 分期按 P0（核心能力）→ P1（外围接入）→ P2（体验完善）。
 
+一次性调研 / 对照方案放 `docs/analysis/YYYY-MM-DD-<topic>.md`，不写进 ADR。
+
 **门禁**：约定逐条有落点、D 表无「待定」。**人工卡点【方案评审】**。
 
 ### C 代码编写
 
-按分期小步走，每改完即 `make check-fast`（gitkeep + adr-check + ruff + pyrefly，秒级反馈）。
+按分期小步走，每改完即 `make check-fast`（fmt + clippy + 注册表/依赖方向/ADR/文档/schema/deny/machete，秒级到数十秒反馈）。
 每期完成时回填 ADR 的「落地状态」与「交接」。
 
 **强制**：不跳 prek、不 `--no-verify`、commit message 用 conventional commits。
 
+改了工具元数据或参数结构时，同步 `make gen-docs` 与 `make gen-schema`，否则 `check-fast` 会报生成物过期。
+
 ### D 测试编写与验证
 
-与实现同轮写测试：核心逻辑单测、CLI 集成。
+与实现同轮写测试：Rust 侧放 crate 内的 `#[cfg(test)]` 或 `crates/*/tests/`；Python 侧放 `tests/py/`。
 
-命令链：`make test` → `make cov`（阈值 95%）。覆盖率口径固定于
-[.coveragerc](../.coveragerc)（`fail_under = 95`，仅统计 `fcmd`），**不得注水**。
+命令链：`make test` → `make cov`（阈值 95%）。覆盖率口径写死在 `cargo xtask check-cov`
+（排除 `crates/rscmd-py/` 与 `crates/xtask/`），**不得注水**。
 
 ### E 集成门禁与文档
 
-`make check`（check-fast + pyrefly linux + cov）。
+`make check`（check-fast + test + pytest + mypy）。
 
-文档更新：README / `docs/*` / ADR 的「落地状态 + 交接」；`make bump` 同步版本号与 `uv.lock`。
+文档更新：README / `docs/*` / ADR 的「落地状态 + 交接」；版本号手动改 `[workspace.package].version`
+与 `CHANGELOG.md`，用 `make version-check` 校验 tag / Cargo / wheel / CHANGELOG 一致。
 
-**门禁**：[ci.yml](../.github/workflows/ci.yml) 通过。
+**门禁**：[ci.yml](../.github/workflows/ci.yml) 三平台矩阵通过。
 
 ### F 推送与发布
 
 `make push`（推全部 remote + tags）→ 打 tag `vX.Y.Z` →
-[release.yml](../.github/workflows/release.yml)：构建 + PyPI（OIDC）+ GitHub Release。
+[release.yml](../.github/workflows/release.yml)：三平台构建 + PyPI（`PYPI_TOKEN`）+ GitHub Release。
 
-**人工卡点【上线 tag】**：打 tag 前必须人工确认。
+发布前本地预检：`make release-preflight`（check-fast → test → pytest → bench → wheel-smoke）。
+
+**人工卡点【上线 tag】**：打 tag 前必须人工确认，且发布环节保持暂停直到明确授权。
 
 ## 4. 命令速查
 
 | 命令 | 用途 |
 |---|---|
-| `make check-docs` | L0 纯文档：gitkeep + adr-check |
-| `make check-fast` | L1 配置 / 内环：gitkeep + adr + ruff + pyrefly |
+| `make check-docs` | L0 纯文档：adr-check + 生成物 docs-check |
+| `make check-fast` | L1 配置 / 内环：fmt + clippy + 注册表 + 架构 + ADR + 文档 + schema + deny + machete |
 | `make flow` | L2 代码：check-fast + test |
-| `make check` | 全量：check-fast + pyrefly(linux) + cov |
-| `make bump [minor\|major]` | 版本号 + tag + 同步 `uv.lock` |
+| `make check` | 全量：check-fast + test + pytest + mypy |
+| `make cov` | llvm-cov（阈值 95%，排除 rscmd-py / xtask） |
+| `make gen-docs` / `make gen-schema` | 重生成 `docs/*.md` / `schema/*.json` |
+| `make bench` | 启动时间基准回归 |
+| `make version-check` | 校验 tag / Cargo / wheel / CHANGELOG 版本一致 |
 | `make push` | 推送全部 remote 与 tags |
 
 ## 5. 项目特定护栏
 
-- 禁 `--no-verify`、禁跳过 prek；conventional commits。
+- 禁 `--no-verify`、禁跳过 prek；conventional commits（正文中文）。
 - 门禁按改动类型分级，混合改动与拿不准的情况按 L2 全链执行。
-- 覆盖率不得注水（阈值 95%，omit 白名单固定）。
+- 覆盖率不得注水（阈值 95%，排除白名单固定）。
 - 需求移除 / 变更先清理 ADR：删失效段落与决策行，不保留历史方案段；ADR 被替代或需求作废则**直接删除**该文件与全仓引用，编号不复用（git 历史可追溯）。

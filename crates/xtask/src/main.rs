@@ -15,6 +15,8 @@ fn main() {
         "registry-check" => registry_check(),
         "code-check" => code_check(),
         "arch-check" => arch_check(),
+        "adr-check" => adr_check(),
+        "check-docs" => check_docs(),
         "docs-check" => docs_check(false),
         "gen-docs" => docs_check(true),
         "schema-check" => schema_check(false),
@@ -23,11 +25,13 @@ fn main() {
         "check" => check(),
         "check-cov" => check_cov(),
         "py-fresh-check" => py_fresh_check(),
+        "py-check" => py_check(),
         "py-type-check" => py_type_check(),
         "wheel-smoke" => wheel_smoke(),
         "bench" => bench(),
         "release-preflight" => release_preflight(),
         "version-check" => version_check(),
+        "push" => push_all(),
         _ => {
             print_help();
             Ok(())
@@ -48,18 +52,22 @@ fn print_help() {
          \x20 registry-check  校验工具注册表、元数据与文件布局\n\
          \x20 code-check      校验源码里用到的错误码都已在 ERROR_CODE_KINDS 登记\n\
          \x20 arch-check      校验 crate 依赖方向\n\
-         \x20 docs-check      校验 docs/tools.md 是否为最新生成物\n\
-         \x20 gen-docs        重新生成 docs/tools.md\n\
+         \x20 adr-check       校验 ADR 编号/命名/索引登记/废弃状态\n\
+         \x20 check-docs      L0 文档门禁（adr-check + docs-check）\n\
+         \x20 docs-check      校验 docs/*.md 是否为最新生成物\n\
+         \x20 gen-docs        重新生成 docs/*.md\n\
          \x20 schema-check    校验 schema/*.json 是否为最新生成物\n\
          \x20 gen-schema      重新生成 schema/*.json\n\
-         \x20 check-fast      fmt + clippy + registry-check + arch-check + docs-check + schema-check\n\
+         \x20 check-fast      fmt + clippy + registry-check + code-check + arch-check + adr-check + docs-check + schema-check + py-fresh-check\n\
          \x20 check           check-fast + 测试 + Python 测试与类型检查（若存在 .venv）\n\
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
          \x20 py-fresh-check  校验 python/rscmd/_native.* 是否旧于 Rust 源码\n\
+         \x20 py-check       运行 tests/py 的 pytest（需 .venv）\n\
          \x20 py-type-check   用 mypy 检查 python/rscmd 与 tests/py（未安装则跳过）\n\
          \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
          \x20 bench           构建 release 并跑启动时间基准回归\n\
          \x20 version-check   校验 tag / Cargo / wheel 版本一致（tag 取 RSCMD_RELEASE_TAG 或 GITHUB_REF_NAME）\n\
+         \x20 push            依次推送所有 remote 与 tags（任一失败则非零退出）\n\
          \x20 release-preflight 发布前本地全量预检（check + 覆盖率 + bench + wheel-smoke + 版本校验）"
     );
 }
@@ -318,6 +326,134 @@ fn forbidden(package: &str, dependency: &str) -> bool {
         "rscmd-py" => dependency == "rscmd-cli" || dependency.starts_with("rscmd-app-"),
         "rscmd-cli" => dependency == "rscmd-py",
         _ => false,
+    }
+}
+
+/// `adr-check`：对齐 fcmd 的 ADR 约定。
+///
+/// - 文件名必须 `NNNN-<topic>.md`，编号从 0001 连续递增、不复用；
+/// - 每条 ADR 必须登记在 `docs/adr/README.md` 索引里；
+/// - 首行为 `# ADR NNNN：<标题>`；
+/// - 不保留「已被替代 / 已废弃」状态的 ADR——作废就删文件，追溯看 git 历史。
+fn adr_check() -> Result<()> {
+    let dir = workspace_root().join("docs/adr");
+    if !dir.is_dir() {
+        println!("adr-check 通过：docs/adr 不存在（尚无 ADR）");
+        return Ok(());
+    }
+
+    let mut entries: Vec<(u32, String)> = Vec::new();
+    for entry in fs::read_dir(&dir).map_err(|err| format!("读取 {} 失败: {err}", dir.display()))?
+    {
+        let entry = entry.map_err(|err| err.to_string())?;
+        let name = entry.file_name().to_string_lossy().to_string();
+        if entry.path().extension().and_then(|ext| ext.to_str()) != Some("md")
+            || name == "README.md"
+        {
+            continue;
+        }
+        let number = name
+            .get(0..4)
+            .filter(|prefix| prefix.bytes().all(|byte| byte.is_ascii_digit()))
+            .and_then(|prefix| prefix.parse::<u32>().ok())
+            .filter(|_| name.as_bytes().get(4) == Some(&b'-') && name.len() > 5)
+            .ok_or_else(|| format!("{name}: 文件名应为 NNNN-<topic>.md"))?;
+        entries.push((number, name));
+    }
+    entries.sort();
+
+    let index_path = dir.join("README.md");
+    let index = fs::read_to_string(&index_path)
+        .map_err(|_| "docs/adr/README.md 缺失；请在索引里登记所有 ADR".to_string())?;
+
+    let mut problems = Vec::new();
+    for (position, (number, name)) in entries.iter().enumerate() {
+        let expected = position as u32 + 1;
+        if *number != expected {
+            problems.push(format!(
+                "{name}: 编号应为 {expected:04}（ADR 编号从 0001 连续递增，不复用）"
+            ));
+        }
+        if !index.contains(name.as_str()) {
+            problems.push(format!("{name}: 未登记到 docs/adr/README.md 索引"));
+        }
+        let text = fs::read_to_string(dir.join(name))
+            .map_err(|err| format!("读取 {} 失败: {err}", dir.join(name).display()))?;
+        if !text.starts_with("# ADR ") {
+            problems.push(format!("{name}: 首行应为 `# ADR NNNN：<标题>`"));
+        }
+        if ["Superseded", "Deprecated", "已废弃", "已被替代"]
+            .iter()
+            .any(|marker| text.contains(marker))
+        {
+            problems.push(format!(
+                "{name}: 被替代或作废的 ADR 应直接删除文件与索引行，不保留历史方案段"
+            ));
+        }
+    }
+
+    if problems.is_empty() {
+        println!(
+            "adr-check 通过：{} 条 ADR 命名/编号/索引一致",
+            entries.len()
+        );
+        Ok(())
+    } else {
+        Err(problems.join("\n"))
+    }
+}
+
+/// L0 文档门禁：ADR 结构 + 生成物新鲜度。
+fn check_docs() -> Result<()> {
+    adr_check()?;
+    docs_check(false)
+}
+
+/// `push`：依次推送所有 remote 与 tags，任一失败最终返回非零。
+/// 单个 remote 失败不中断后续 remote，避免漏推。
+fn push_all() -> Result<()> {
+    let root = workspace_root();
+    let output = Command::new("git")
+        .args(["remote"])
+        .current_dir(&root)
+        .output()
+        .map_err(|err| format!("执行 git remote 失败: {err}"))?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    let remotes: Vec<String> = String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_string)
+        .collect();
+    if remotes.is_empty() {
+        return Err("没有任何 git remote，无法推送".to_string());
+    }
+
+    let mut failed = Vec::new();
+    for remote in &remotes {
+        for args in [
+            vec!["push", remote.as_str()],
+            vec!["push", remote.as_str(), "--tags"],
+        ] {
+            println!("$ git {}", args.join(" "));
+            let status = Command::new("git")
+                .args(&args)
+                .current_dir(&root)
+                .status()
+                .map_err(|err| format!("执行 git push 失败: {err}"))?;
+            if !status.success() {
+                failed.push(format!("{} {}", remote, args.join(" ")));
+            }
+        }
+    }
+
+    if failed.is_empty() {
+        println!("push 通过：{} 个 remote 与 tags 均已推送", remotes.len());
+        Ok(())
+    } else {
+        Err(format!("以下推送失败:\n{}", failed.join("\n")))
     }
 }
 
@@ -667,6 +803,7 @@ fn check_fast() -> Result<()> {
     registry_check()?;
     code_check()?;
     arch_check()?;
+    adr_check()?;
     docs_check(false)?;
     schema_check(false)?;
     py_fresh_check()?;

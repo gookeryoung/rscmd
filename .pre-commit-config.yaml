@@ -1,0 +1,32 @@
+# 本地提交钩子（prek / pre-commit 通用格式）。
+#
+# 设计取舍：只保留本地、离线、秒级钩子，不引入远程 hook 仓库——
+# 提交时不做网络拉取；重型检查（clippy / deny / machete / 测试）留在
+# `make check-fast` 与 CI，避免每次提交都付全量代价。
+#
+# 安装：prek install   （或 pre-commit install）
+
+minimum_pre_commit_version: "3.5.0"
+repos:
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt --check
+        entry: cargo fmt --all -- --check
+        language: system
+        pass_filenames: false
+        types: [rust]
+
+      - id: adr-check
+        name: cargo xtask adr-check
+        entry: cargo run -q -p xtask -- adr-check
+        language: system
+        pass_filenames: false
+        files: ^docs/adr/.*\.md$|^AGENTS\.md$
+
+      - id: docs-check
+        name: cargo xtask docs-check
+        entry: cargo run -q -p xtask -- docs-check
+        language: system
+        pass_filenames: false
+        files: ^docs/.*\.md$|^crates/(rscmd-tools|rscmd-core)/.*\.rs$
