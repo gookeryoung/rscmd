@@ -154,8 +154,10 @@ rscmd reshackw app.exe                    # 打开时附带文件（当前 POC �
 RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # 显式指定二进制
 ```
 
-定位顺序：`RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；
-找不到时返回 `GUI_UNAVAILABLE`（退出码 1）并提示构建命令。
+定位顺序：`RSCMD_RESHACKW` → 与 `rscmd` 同目录 → `PATH` → 源码树 `target/{debug,release}`
+（从 cwd 逐级向上，含 `CARGO_TARGET_DIR`）；后两条让 Python / `uv tool` 入口（`current_exe`
+不是 Rust 二进制）也能找到本地构建的 GUI。全都没命中时返回 `GUI_UNAVAILABLE`（退出码 1），
+错误里列出一部分搜寻目录并提示构建命令。
 该工具标记为 `gui: true`：`list --for-llm` 与 MCP 不会暴露它，Python 侧为 `hidden`。
 
 ## 输出契约

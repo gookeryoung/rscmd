@@ -154,8 +154,11 @@ rscmd reshackw app.exe                    # open with a file (current POC previe
 RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # explicit binary path
 ```
 
-Lookup order: `RSCMD_RESHACKW` -> `rscmd-reshackw[.exe]` next to `rscmd`;
-when not found it returns `GUI_UNAVAILABLE` (exit code 1) and prints the build command.
+Lookup order: `RSCMD_RESHACKW` -> next to the `rscmd` executable -> `PATH` ->
+`target/{debug,release}` in the source tree (walking up from cwd, `CARGO_TARGET_DIR` included).
+The last two matter for Python / `uv tool` entries, where `current_exe` is not the Rust binary;
+when nothing matches it returns `GUI_UNAVAILABLE` (exit code 1), lists part of the searched
+directories and prints the build command.
 The tool is marked `gui: true`: `list --for-llm` and MCP do not expose it, and it is `hidden` on the Python side.
 
 ## Output contract
