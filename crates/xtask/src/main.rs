@@ -944,10 +944,20 @@ fn newest_wheel(dir: &Path) -> Option<PathBuf> {
         .max_by_key(|path| fs::metadata(path).and_then(|meta| meta.modified()).ok())
 }
 
-/// 版本一致性校验：tag（可选）与 Cargo workspace 版本一致；`dist/*.whl` 文件名版本一致。
+/// 版本一致性校验：tag（可选）与 Cargo workspace 版本一致；`dist/*.whl` 文件名版本一致；
+/// `CHANGELOG.md` 存在该版本的段落标题。
 fn version_check() -> Result<()> {
     let root = workspace_root();
     let expected = workspace_version(&root)?;
+
+    let changelog = fs::read_to_string(root.join("CHANGELOG.md"))
+        .map_err(|err| format!("读取 CHANGELOG.md 失败: {err}"))?;
+    if !changelog_has_version(&changelog, &expected) {
+        return Err(format!(
+            "CHANGELOG.md 缺少 [{expected}] 段落，请按版本补写更新日志后再发布"
+        ));
+    }
+    println!("CHANGELOG 校验通过: [{expected}]");
 
     let tag = std::env::var("RSCMD_RELEASE_TAG")
         .ok()
@@ -1021,6 +1031,22 @@ fn wheel_version(file_name: &str) -> Option<&str> {
     let rest = file_name.strip_prefix("rscmd-")?;
     let (version, _) = rest.split_once('-')?;
     (!version.is_empty()).then_some(version)
+}
+
+/// CHANGELOG 是否存在 `## [<version>]` 段落（允许其后跟日期等说明，如 `## [0.1.0] - 2026-11-16`）。
+fn changelog_has_version(text: &str, version: &str) -> bool {
+    let prefix = format!("[{version}]");
+    text.lines().any(|line| {
+        let Some(rest) = line.trim_start().strip_prefix("## ") else {
+            return false;
+        };
+        let rest = rest.trim_start();
+        match rest.strip_prefix(&prefix) {
+            // `[0.1.0]` 之后必须是行尾或空格，避免把 `[0.1.00]` 当成命中。
+            Some(tail) => tail.is_empty() || tail.starts_with(' '),
+            None => false,
+        }
+    })
 }
 
 fn run_cargo(args: &[&str]) -> Result<()> {
@@ -1138,7 +1164,7 @@ pub fn release_preflight() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_newlines, wheel_version};
+    use super::{changelog_has_version, normalize_newlines, wheel_version};
 
     #[test]
     fn normalizes_crlf_before_compare() {
@@ -1162,5 +1188,21 @@ mod tests {
     fn rejects_foreign_wheel_name() {
         assert_eq!(wheel_version("other-0.1.0-py3-none-any.whl"), None);
         assert_eq!(wheel_version("rscmd.whl"), None);
+    }
+
+    #[test]
+    fn finds_changelog_section_with_or_without_date() {
+        let text = "# 更新日志\n\n## [0.1.0] - 2026-11-16\n\n- 内容\n";
+        assert!(changelog_has_version(text, "0.1.0"));
+        assert!(!changelog_has_version(text, "0.2.0"));
+
+        let bare = "## [0.2.0]\n- 内容\n";
+        assert!(changelog_has_version(bare, "0.2.0"));
+    }
+
+    #[test]
+    fn changelog_section_match_is_whole_version() {
+        let text = "## [0.1.00] - 2026-11-16\n### [0.1.0] 子标题\n";
+        assert!(!changelog_has_version(text, "0.1.0"));
     }
 }
