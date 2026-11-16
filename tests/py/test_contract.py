@@ -316,3 +316,48 @@ def test_module_cli_no_args_shows_help() -> None:
     assert result.returncode == 0
     output = (result.stdout + result.stderr).lower()
     assert "rscmd" in output
+
+
+# --- subprocess：MCP stdio 服务 ---
+
+
+def test_module_cli_mcp_stdio() -> None:
+    requests = (
+        "\n".join(
+            [
+                '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}',
+                '{"jsonrpc":"2.0","method":"notifications/initialized"}',
+                (
+                    '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":'
+                    '{"name":"case","arguments":{"text":"HelloWorld","mode":"snake"}}}'
+                ),
+            ]
+        )
+        + "\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "rscmd", "mcp"],
+        input=requests,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    responses = [json.loads(line) for line in result.stdout.splitlines()]
+    assert len(responses) == 2
+    assert responses[0]["result"]["serverInfo"]["name"] == "rscmd"
+    assert responses[0]["result"]["protocolVersion"] == "2025-06-18"
+    assert responses[1]["result"]["isError"] is False
+    assert responses[1]["result"]["content"][0]["text"] == "hello_world"
+
+
+def test_module_cli_mcp_with_extra_args_prints_usage() -> None:
+    result = subprocess.run(
+        [sys.executable, "-m", "rscmd", "mcp", "extra"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "rscmd mcp" in result.stderr

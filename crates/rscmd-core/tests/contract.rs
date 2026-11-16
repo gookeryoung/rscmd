@@ -614,7 +614,8 @@ fn dispatch_builtins() {
     assert_eq!(data["global"]["title"], "GlobalArgs");
     assert!(data["global"]["properties"].is_object());
 
-    // MCP 服务只能从 CLI 可执行文件进入，库内调用给出明确用法错误。
+    // MCP 是阻塞式 stdio 服务，只能由进程入口（`rscmd mcp` / `python -m rscmd mcp`）接管；
+    // 库内 dispatch 给出明确用法错误。
     let out = dispatch(&TOOLS, &argv(&["mcp"]));
     assert_eq!(out.exit_code(), 2);
     assert_eq!(out.result.unwrap_err().code, "USAGE");

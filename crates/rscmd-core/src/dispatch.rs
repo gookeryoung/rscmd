@@ -437,12 +437,12 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
         }
         "schema" => Ok(schema_data(tools)),
         "completion" => Ok(completion_data(tools, sub)),
-        // MCP 是阻塞式 stdio 服务，只能由 CLI 可执行文件进入；这里给出明确指引。
+        // MCP 是阻塞式 stdio 服务，只能由进程入口接管；库内调用给出明确指引。
         "mcp" => Err(RscmdError::coded(
             "USAGE",
             "MCP server 需直接运行 `rscmd mcp`（stdin/stdout 协议）",
         )
-        .with_hint("Python 绑定不支持 MCP 服务模式")),
+        .with_hint("`cli_main` 一次性返回输出，不承载 stdio 服务；请用 `rscmd mcp` 或 `python -m rscmd mcp`")),
         "version" => Ok(builtins::version_data()),
         "doctor" => Ok(builtins::doctor_data(
             tools,

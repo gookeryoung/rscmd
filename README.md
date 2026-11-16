@@ -200,7 +200,8 @@ rscmd completion powershell  > rscmd.ps1
 ```
 
 MCP 只暴露有 JSON 入口的非 GUI 工具，`inputSchema` 直接复用工具 Schema，
-协议版本 2025-06-18。该模式只由 CLI 可执行文件提供。
+协议版本 2025-06-18。Rust 二进制与 Python console script 共用同一套 stdio 循环，
+venv 内也可直接 `python -m rscmd mcp`；`rscmd.cli_main` 一次性返回输出，不承载该模式。
 
 ## 开发
 

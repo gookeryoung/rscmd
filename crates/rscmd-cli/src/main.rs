@@ -57,32 +57,7 @@ fn mcp_usage() -> ExitCode {
 
 /// 逐行读取 JSON-RPC 请求并写回响应；stdin 关闭后正常退出。
 fn serve_mcp() -> ExitCode {
-    use std::io::{BufRead, BufWriter, Write};
-
-    let tools = rscmd_tools::tools();
-    let stdin = std::io::stdin();
-    let mut stdout = BufWriter::new(std::io::stdout().lock());
-    for line in stdin.lock().lines() {
-        let Ok(line) = line else { break };
-        if line.trim().is_empty() {
-            continue;
-        }
-        let response = match serde_json::from_str::<serde_json::Value>(&line) {
-            Ok(request) => rscmd_core::mcp::handle_request(tools, &request),
-            Err(_) => Some(rscmd_core::mcp::parse_error_response()),
-        };
-        let Some(response) = response else {
-            continue; // 通知不需要响应
-        };
-        let text = serde_json::to_string(&response).unwrap_or_default();
-        if writeln!(stdout, "{text}")
-            .and_then(|_| stdout.flush())
-            .is_err()
-        {
-            return ExitCode::from(1);
-        }
-    }
-    ExitCode::SUCCESS
+    ExitCode::from(rscmd_core::mcp::serve_stdio(rscmd_tools::tools()) as u8)
 }
 
 #[cfg(test)]

@@ -1,7 +1,10 @@
 //! MCP（Model Context Protocol）薄封装：把注册表映射成 MCP 的 `tools/list` 与 `tools/call`。
 //!
-//! 这里只做协议对象的纯构造，不做 I/O；stdio 循环由 CLI 的 `rscmd mcp` 负责。
+//! 协议对象是纯构造；stdio 循环由 [`serve`] / [`serve_stdio`] 提供，CLI 与 Python 绑定共用，
+//! 避免两侧各写一份逐行读写逻辑。
 //! 暴露范围：有 JSON 入口（`run_json`）且非 GUI 的工具，参数表直接复用工具的 `schema`。
+
+use std::io::{BufRead, BufWriter, Write};
 
 use serde_json::{json, Map, Value};
 
@@ -74,6 +77,39 @@ pub fn handle_request(tools: &'static [ToolDef], request: &Value) -> Option<Valu
 /// 无法解析成 JSON 时的响应。
 pub fn parse_error_response() -> Value {
     error_response(Value::Null, -32700, "无法解析 JSON".to_string())
+}
+
+/// 逐行读取 JSON-RPC 请求并向 `writer` 写回响应；读到 EOF 返回 0，写出失败返回 1。
+pub fn serve<R: BufRead, W: Write>(tools: &'static [ToolDef], reader: R, writer: W) -> i32 {
+    let mut writer = BufWriter::new(writer);
+    for line in reader.lines() {
+        let Ok(line) = line else { break };
+        if line.trim().is_empty() {
+            continue;
+        }
+        let response = match serde_json::from_str::<Value>(&line) {
+            Ok(request) => handle_request(tools, &request),
+            Err(_) => Some(parse_error_response()),
+        };
+        let Some(response) = response else {
+            continue; // 通知不需要响应
+        };
+        let text = serde_json::to_string(&response).unwrap_or_default();
+        if writeln!(writer, "{text}")
+            .and_then(|_| writer.flush())
+            .is_err()
+        {
+            return 1;
+        }
+    }
+    0
+}
+
+/// 以当前进程的 stdin/stdout 提供服务（CLI `rscmd mcp` 与 Python 绑定共用）。
+pub fn serve_stdio(tools: &'static [ToolDef]) -> i32 {
+    let stdin = std::io::stdin();
+    let stdout = std::io::stdout();
+    serve(tools, stdin.lock(), stdout.lock())
 }
 
 fn initialize_result(params: Option<&Value>) -> Value {
@@ -372,5 +408,32 @@ mod tests {
     fn ping_returns_empty_result() {
         let response = handle_request(&TOOLS, &request("ping", json!({}))).unwrap();
         assert_eq!(response["result"], json!({}));
+    }
+
+    #[test]
+    fn serve_writes_one_line_per_request_and_skips_notifications() {
+        let input = [
+            r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#,
+            r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+            "",
+            r#"{"jsonrpc":"2.0","id":2,"method":"ping"}"#,
+            "{not json}",
+        ]
+        .join("\n")
+            + "\n";
+        let mut output: Vec<u8> = Vec::new();
+        let code = serve(&TOOLS, std::io::Cursor::new(input), &mut output);
+        assert_eq!(code, 0);
+
+        let lines: Vec<Value> = String::from_utf8(output)
+            .unwrap()
+            .lines()
+            .map(|line| serde_json::from_str(line).unwrap())
+            .collect();
+        // 通知与空行不产生响应，非法 JSON 产生 -32700。
+        assert_eq!(lines.len(), 3);
+        assert_eq!(lines[0]["result"]["serverInfo"]["name"], SERVER_NAME);
+        assert_eq!(lines[1]["result"], json!({}));
+        assert_eq!(lines[2]["error"]["code"], -32700);
     }
 }

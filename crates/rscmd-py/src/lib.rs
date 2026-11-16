@@ -96,6 +96,13 @@ fn cli_main(argv: Vec<String>) -> (i32, String, String) {
     (outcome.exit_code(), stdout, stderr)
 }
 
+/// `rscmd mcp`：直接接管进程 stdin/stdout 跑 MCP stdio 服务，返回退出码。
+#[pyfunction]
+fn mcp_serve(py: Python<'_>) -> i32 {
+    // 循环期间不触碰 Python 对象，释放 GIL 避免阻塞解释器。
+    py.allow_threads(|| rscmd_core::mcp::serve_stdio(rscmd_tools::tools()))
+}
+
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(version, module)?)?;
@@ -104,6 +111,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(invoke, module)?)?;
     module.add_function(wrap_pyfunction!(run_argv, module)?)?;
     module.add_function(wrap_pyfunction!(cli_main, module)?)?;
+    module.add_function(wrap_pyfunction!(mcp_serve, module)?)?;
     module.add("NativeError", module.py().get_type::<NativeError>())?;
     Ok(())
 }
