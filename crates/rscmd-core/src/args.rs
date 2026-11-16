@@ -14,6 +14,7 @@ pub const GLOBAL_DRY_RUN: &str = "_rscmd_dry_run";
 pub const GLOBAL_CONFIRM: &str = "_rscmd_confirm";
 pub const GLOBAL_WORKERS: &str = "_rscmd_workers";
 pub const GLOBAL_LIMIT: &str = "_rscmd_limit";
+pub const GLOBAL_VERBOSE: &str = "_rscmd_verbose";
 
 /// CLI 全局参数（所有工具子命令共享）。
 #[derive(Debug, Clone, Default, Args, JsonSchema, Serialize)]
@@ -41,6 +42,10 @@ pub struct GlobalArgs {
     /// 结果条数上限，0 表示不限制
     #[arg(long = "limit", global = true, id = GLOBAL_LIMIT, value_name = "N", default_value_t = 0)]
     pub limit: usize,
+
+    /// 在 stderr 输出工具名与耗时跟踪，不改变 stdout 契约
+    #[arg(long = "verbose", short = 'v', global = true, id = GLOBAL_VERBOSE)]
+    pub verbose: bool,
 }
 
 /// 全局参数的 JSON Schema，供 `schema/global.json` 生成物使用。
@@ -69,6 +74,7 @@ mod tests {
         assert!(!cli.global.confirm);
         assert_eq!(cli.global.workers, 0);
         assert_eq!(cli.global.limit, 0);
+        assert!(!cli.global.verbose);
     }
 
     #[test]
@@ -77,6 +83,17 @@ mod tests {
         assert!(cli.global.json);
         assert_eq!(cli.global.workers, 4);
         assert_eq!(cli.global.limit, 10);
+    }
+
+    #[test]
+    fn global_args_parses_verbose() {
+        assert!(
+            Cli::try_parse_from(["x", "--verbose"])
+                .unwrap()
+                .global
+                .verbose
+        );
+        assert!(Cli::try_parse_from(["x", "-v"]).unwrap().global.verbose);
     }
 
     #[test]

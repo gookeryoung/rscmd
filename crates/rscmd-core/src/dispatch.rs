@@ -11,9 +11,11 @@
 use clap::{Arg, ArgAction, Args, Command};
 use serde_json::{json, Value};
 
+use std::time::Instant;
+
 use crate::args::{
     GlobalArgs, GLOBAL_CONFIRM, GLOBAL_DRY_RUN, GLOBAL_JSON, GLOBAL_LIMIT, GLOBAL_QUIET,
-    GLOBAL_WORKERS,
+    GLOBAL_VERBOSE, GLOBAL_WORKERS,
 };
 use crate::builtins;
 use crate::ctx::ToolCtx;
@@ -27,6 +29,10 @@ pub struct Outcome {
     pub result: Result<Value, RscmdError>,
     pub json: bool,
     pub quiet: bool,
+    /// `--verbose`：在 stderr 输出执行跟踪，不影响 stdout 契约。
+    pub verbose: bool,
+    /// 从参数解析到工具执行完成的耗时（毫秒）。
+    pub elapsed_ms: u128,
 }
 
 impl Outcome {
@@ -43,16 +49,19 @@ impl Outcome {
 
 /// 解析并执行一次调用。`argv` 不包含程序名。
 pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
+    let started = Instant::now();
     let raw_json = argv.iter().any(|arg| arg == "--json");
     let raw_quiet = argv.iter().any(|arg| arg == "--quiet");
+    let raw_verbose = argv.iter().any(|arg| arg == "--verbose" || arg == "-v");
     let root = root_command(tools);
     let mut full = Vec::with_capacity(argv.len() + 1);
     full.push("rscmd".to_string());
     full.extend(argv.iter().cloned());
 
     match root.try_get_matches_from(full) {
-        Ok(matches) => run_matches(tools, &matches),
+        Ok(matches) => run_matches(tools, &matches, started),
         Err(err) => {
+            let elapsed_ms = started.elapsed().as_millis();
             // --help / --version 属于正常输出，不是调用错误。
             if matches!(
                 err.kind(),
@@ -63,6 +72,8 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
                     result: Ok(json!({ "text": err.to_string().trim_end() })),
                     json: raw_json,
                     quiet: raw_quiet,
+                    verbose: raw_verbose,
+                    elapsed_ms,
                 };
             }
             Outcome {
@@ -73,6 +84,8 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
                 )),
                 json: raw_json,
                 quiet: raw_quiet,
+                verbose: raw_verbose,
+                elapsed_ms,
             }
         }
     }
@@ -140,7 +153,7 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
     root
 }
 
-fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome {
+fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: Instant) -> Outcome {
     let (name, sub) = match matches.subcommand() {
         Some(pair) => pair,
         None => {
@@ -153,6 +166,8 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
                 result: Ok(json!({ "text": help })),
                 json: matches.get_flag(GLOBAL_JSON),
                 quiet: matches.get_flag(GLOBAL_QUIET),
+                verbose: matches.get_flag(GLOBAL_VERBOSE),
+                elapsed_ms: started.elapsed().as_millis(),
             };
         }
     };
@@ -160,6 +175,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
     // root 级 + sub 级同名 flag 都算激活（兼容 `--json` 放在子命令后）
     let json = matches.get_flag(GLOBAL_JSON) || flag_in(sub, GLOBAL_JSON);
     let quiet = matches.get_flag(GLOBAL_QUIET) || flag_in(sub, GLOBAL_QUIET);
+    let verbose = matches.get_flag(GLOBAL_VERBOSE) || flag_in(sub, GLOBAL_VERBOSE);
     let dry_run = matches.get_flag(GLOBAL_DRY_RUN) || flag_in(sub, GLOBAL_DRY_RUN);
     let confirm = matches.get_flag(GLOBAL_CONFIRM) || flag_in(sub, GLOBAL_CONFIRM);
     let workers = usize_in(matches, GLOBAL_WORKERS).max(usize_in(sub, GLOBAL_WORKERS));
@@ -171,7 +187,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
     };
 
     // 构造 ToolCtx（供后续工具 invoke 共用）
-    let mut ctx = ToolCtx::new(dry_run, confirm, quiet, limit, workers);
+    let mut ctx = ToolCtx::new(dry_run, confirm, quiet, limit, workers, verbose);
 
     // run 嵌套入口：再取一层子命令拿到真正的工具
     if name == "run" {
@@ -182,6 +198,8 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
                 result,
                 json,
                 quiet,
+                verbose,
+                elapsed_ms: started.elapsed().as_millis(),
             };
         }
         // rscmd run 不带工具名 → USAGE 错误
@@ -193,6 +211,8 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
             )),
             json,
             quiet,
+            verbose,
+            elapsed_ms: started.elapsed().as_millis(),
         };
     }
 
@@ -225,6 +245,8 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
         result,
         json,
         quiet,
+        verbose,
+        elapsed_ms: started.elapsed().as_millis(),
     }
 }
 

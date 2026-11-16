@@ -52,6 +52,15 @@ fn json_fmt_invalid_json_returns_error_envelope() {
 }
 
 #[test]
+fn verbose_trace_only_goes_to_stderr() {
+    let (code, stdout, stderr) = run(&["--verbose", "case", "--mode", "snake", "HelloWorld"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert_eq!(stdout, "hello_world\n");
+    assert!(stderr.starts_with("[rscmd] tool=case"), "{stderr}");
+    assert!(stderr.contains("elapsed="), "{stderr}");
+}
+
+#[test]
 fn global_flags_work_after_subcommand() {
     let (code, stdout, _stderr) = run(&["case", "HelloWorld", "--json"]);
     assert_eq!(code, 0);

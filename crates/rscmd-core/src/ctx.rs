@@ -7,6 +7,7 @@ pub struct ToolCtx {
     pub quiet: bool,
     pub limit: Option<usize>,
     pub workers: usize,
+    pub verbose: bool,
 }
 
 impl ToolCtx {
@@ -16,6 +17,7 @@ impl ToolCtx {
         quiet: bool,
         limit: Option<usize>,
         workers: usize,
+        verbose: bool,
     ) -> Self {
         Self {
             dry_run,
@@ -23,6 +25,7 @@ impl ToolCtx {
             quiet,
             limit,
             workers,
+            verbose,
         }
     }
 }

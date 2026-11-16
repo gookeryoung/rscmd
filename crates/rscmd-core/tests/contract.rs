@@ -85,6 +85,8 @@ fn outcome(tool: &str, result: Result<Value, RscmdError>, json_mode: bool) -> Ou
         result,
         json: json_mode,
         quiet: false,
+        verbose: false,
+        elapsed_ms: 0,
     }
 }
 
@@ -299,6 +301,25 @@ fn render_human_prefers_text_then_json_then_pretty() {
 }
 
 #[test]
+fn render_verbose_traces_to_stderr_only() {
+    let mut result = outcome("t", Ok(json!({"text": "hello"})), false);
+    result.verbose = true;
+    result.elapsed_ms = 7;
+    let (stdout, stderr) = render(&result);
+    assert_eq!(stdout, "hello\n");
+    assert_eq!(stderr, "[rscmd] tool=t elapsed=7ms\n");
+
+    // JSON 模式下 stdout 仍是纯信封，跟踪只进 stderr。
+    let mut result = outcome("version", Ok(json!({"name": "rscmd"})), true);
+    result.verbose = true;
+    let (stdout, stderr) = render(&result);
+    let envelope: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(envelope["schema"], "rscmd-result/1");
+    assert!(stderr.starts_with("[rscmd] tool=version"));
+    assert!(stderr.contains("elapsed="));
+}
+
+#[test]
 fn render_quiet_suppresses_success() {
     let mut result = outcome("t", Ok(json!({"text": "hello"})), false);
     result.quiet = true;
@@ -403,6 +424,13 @@ fn dispatch_global_flags_after_subcommand() {
     assert_eq!(out.exit_code(), 0);
     assert!(out.json);
     assert!(out.quiet);
+}
+
+#[test]
+fn dispatch_enables_verbose_anywhere() {
+    assert!(dispatch(&TOOLS, &argv(&["--verbose", "version"])).verbose);
+    assert!(dispatch(&TOOLS, &argv(&["version", "-v"])).verbose);
+    assert!(!dispatch(&TOOLS, &argv(&["version"])).verbose);
 }
 
 #[test]
@@ -514,6 +542,8 @@ fn doctor_flags_broken_registry_and_empty_tools() {
         result: Ok(data),
         json: false,
         quiet: false,
+        verbose: false,
+        elapsed_ms: 0,
     };
     assert_eq!(out.exit_code(), 5);
 

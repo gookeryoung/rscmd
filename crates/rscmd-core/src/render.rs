@@ -8,7 +8,23 @@ use crate::envelope;
 use crate::errors::RscmdError;
 
 /// 返回 `(stdout, stderr)`。
+///
+/// `--verbose` 只在 stderr 追加执行跟踪，stdout 的人类可读文本与 JSON 信封保持不变。
 pub fn render(outcome: &Outcome) -> (String, String) {
+    let (stdout, stderr) = render_body(outcome);
+    if !outcome.verbose {
+        return (stdout, stderr);
+    }
+    let tool = if outcome.tool.is_empty() {
+        "-"
+    } else {
+        outcome.tool.as_str()
+    };
+    let trace = format!("[rscmd] tool={tool} elapsed={}ms\n", outcome.elapsed_ms);
+    (stdout, format!("{trace}{stderr}"))
+}
+
+fn render_body(outcome: &Outcome) -> (String, String) {
     match &outcome.result {
         Ok(data) => {
             if outcome.json {

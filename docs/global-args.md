@@ -15,4 +15,5 @@
 | `--json` | boolean | `—` | 以 JSON 信封输出结果 |
 | `--limit` | integer | `—` | 结果条数上限，0 表示不限制 |
 | `--quiet` | boolean | `—` | 人读模式下不输出成功结果 |
+| `--verbose` | boolean | `—` | 在 stderr 输出工具名与耗时跟踪，不改变 stdout 契约 |
 | `--workers` | integer | `—` | 并行度，0 表示自动 |
