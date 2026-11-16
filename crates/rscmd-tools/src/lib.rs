@@ -40,6 +40,8 @@ mod tests {
         #[cfg(feature = "system")]
         assert!(names.contains(&"path"));
         #[cfg(feature = "system")]
+        assert!(names.contains(&"filesearch"));
+        #[cfg(feature = "system")]
         assert!(names.contains(&"which"));
         assert!(!names.is_empty());
     }

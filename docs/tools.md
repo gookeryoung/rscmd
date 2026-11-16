@@ -10,5 +10,6 @@
 | `json_fmt` | `jsonfmt` | 校验并格式化 JSON；非法输入返回可自纠的错误 | `none` | `structured` |
 | `hash` | `hashtool` | 计算文本或文件的 SHA-256（hex） | `read` | `structured` |
 | `codec` | `codetool` | 文本编解码：base64 / hex / URL | `none` | `structured` |
+| `filesearch` | `filesearchtool` | 按文件名 glob 与内容子串检索文件，支持 --limit 截断 | `read` | `structured` |
 | `path` | `pathtool` | 路径规范化、拼接、相对路径与绝对路径判定 | `none` | `structured` |
 | `which` | `whichtool` | 在 PATH 中查找可执行文件，返回绝对路径或 null | `read` | `structured` |

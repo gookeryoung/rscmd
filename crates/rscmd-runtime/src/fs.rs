@@ -237,6 +237,80 @@ pub fn read_text(path: &Path) -> io::Result<String> {
     })
 }
 
+/// 按 glob 语义匹配路径文本，纯字符串实现、与宿主平台无关。
+///
+/// - `*` 匹配任意个非分隔符字符；
+/// - `?` 匹配单个非分隔符字符；
+/// - 作为独立路径段的 `**` 跨目录匹配任意层（`**/` 可匹配零层目录）；
+/// - 分隔符统一按 `/` 处理，`pattern` 中的 `\` 视同 `/`（不支持转义）；
+/// - 大小写敏感，三平台结果一致。
+///
+/// `text` 由调用方负责使用 `/` 分隔（例如把 `Path` 的组件拼接后再传入）。
+pub fn glob_match(pattern: &str, text: &str) -> bool {
+    let pattern = pattern.replace('\\', "/");
+    let pattern_segments: Vec<&str> = pattern.split('/').filter(|seg| !seg.is_empty()).collect();
+    let text_segments: Vec<&str> = text.split('/').filter(|seg| !seg.is_empty()).collect();
+    let mut memo = vec![vec![None; text_segments.len() + 1]; pattern_segments.len() + 1];
+    match_glob_segments(&pattern_segments, &text_segments, 0, 0, &mut memo)
+}
+
+fn match_glob_segments(
+    pattern: &[&str],
+    text: &[&str],
+    pattern_index: usize,
+    text_index: usize,
+    memo: &mut [Vec<Option<bool>>],
+) -> bool {
+    if let Some(cached) = memo[pattern_index][text_index] {
+        return cached;
+    }
+    let result = if pattern_index == pattern.len() {
+        text_index == text.len()
+    } else if pattern[pattern_index] == "**" {
+        // `**` 作为独立段时匹配任意层（含零层），逐层尝试后续模式。
+        (text_index..=text.len())
+            .any(|next| match_glob_segments(pattern, text, pattern_index + 1, next, memo))
+    } else if text_index == text.len() {
+        false
+    } else {
+        match_glob_segment(pattern[pattern_index], text[text_index])
+            && match_glob_segments(pattern, text, pattern_index + 1, text_index + 1, memo)
+    };
+    memo[pattern_index][text_index] = Some(result);
+    result
+}
+
+/// 单段通配匹配：`*` 与 `?` 均不跨段（段内不含分隔符）。
+fn match_glob_segment(pattern: &str, text: &str) -> bool {
+    let pattern: Vec<char> = pattern.chars().collect();
+    let text: Vec<char> = text.chars().collect();
+    let (mut pat_index, mut text_index) = (0, 0);
+    let mut star: Option<usize> = None;
+    let mut star_text = 0;
+    while text_index < text.len() {
+        if pat_index < pattern.len()
+            && (pattern[pat_index] == '?' || pattern[pat_index] == text[text_index])
+        {
+            pat_index += 1;
+            text_index += 1;
+        } else if pat_index < pattern.len() && pattern[pat_index] == '*' {
+            star = Some(pat_index);
+            star_text = text_index;
+            pat_index += 1;
+        } else if let Some(star_index) = star {
+            pat_index = star_index + 1;
+            star_text += 1;
+            text_index = star_text;
+        } else {
+            return false;
+        }
+    }
+    while pat_index < pattern.len() && pattern[pat_index] == '*' {
+        pat_index += 1;
+    }
+    pat_index == pattern.len()
+}
+
 /// 递归遍历目录。回调收到每个文件的路径；返回 false 时停止当前分支的递归。
 /// 忽略 `.rscmd-tmp-*` 临时文件。
 pub fn walk_files<F>(root: &Path, mut visitor: F) -> io::Result<()>
@@ -376,6 +450,50 @@ mod tests {
         let bin = dir.path().join("data.unknown");
         fs::write(&bin, [0u8; 100]).unwrap();
         assert!(!is_text_file(&bin).unwrap());
+    }
+
+    #[test]
+    fn glob_matches_basename_patterns() {
+        assert!(glob_match("*.txt", "a.txt"));
+        assert!(glob_match("*.txt", "报告.txt"));
+        assert!(!glob_match("*.txt", "a.md"));
+        assert!(glob_match("a?c", "abc"));
+        assert!(!glob_match("a?c", "ac"));
+        assert!(glob_match("a*", "a"));
+        assert!(glob_match("*", "anything"));
+    }
+
+    #[test]
+    fn glob_separator_is_not_crossed_by_single_star() {
+        assert!(!glob_match("*.txt", "sub/a.txt"));
+        assert!(glob_match("sub/*.txt", "sub/a.txt"));
+        assert!(!glob_match("sub/*.txt", "sub/deep/a.txt"));
+    }
+
+    #[test]
+    fn glob_double_star_crosses_directories_including_zero() {
+        assert!(glob_match("**/*.txt", "a.txt"));
+        assert!(glob_match("**/*.txt", "sub/deep/a.txt"));
+        assert!(glob_match("sub/**/a.txt", "sub/a.txt"));
+        assert!(glob_match("sub/**/a.txt", "sub/deep/deeper/a.txt"));
+        assert!(!glob_match("sub/**/a.txt", "other/a.txt"));
+        assert!(glob_match("**", "sub/deep/a.txt"));
+    }
+
+    #[test]
+    fn glob_normalizes_backslashes_and_is_case_sensitive() {
+        assert!(glob_match("sub\\*.txt", "sub/a.txt"));
+        assert!(!glob_match("*.TXT", "a.txt"), "大小写敏感，三平台一致");
+        assert!(!glob_match("*.txt", "a.TXT"));
+    }
+
+    #[test]
+    fn glob_handles_empty_and_unicode_segments() {
+        assert!(glob_match("", ""));
+        assert!(!glob_match("", "a"));
+        assert!(glob_match("**/", "a/b"));
+        assert!(glob_match("资产/*.md", "资产/说明.md"));
+        assert!(!glob_match("资产/*.md", "资料/说明.md"));
     }
 
     #[test]

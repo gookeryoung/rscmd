@@ -1,6 +1,7 @@
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -13,7 +14,24 @@ def test_version_matches_package() -> None:
 
 def test_tools_contains_p0_tools() -> None:
     names = {tool["name"] for tool in rscmd.tools()}
-    assert {"case", "wc", "json_fmt", "hash", "codec", "regex", "path", "which"} <= names
+    assert {
+        "case",
+        "wc",
+        "json_fmt",
+        "hash",
+        "codec",
+        "regex",
+        "path",
+        "which",
+        "filesearch",
+    } <= names
+
+
+def test_invoke_filesearch_finds_name(tmp_path: Path) -> None:
+    (tmp_path / "a.txt").write_text("needle\n", encoding="utf-8")
+    out = rscmd.invoke("filesearch", {"root": str(tmp_path), "name": "*.txt"})
+    assert out["matched"] == 1
+    assert out["results"][0]["path"] == "a.txt"
 
 
 def test_invoke_codec_decodes_base64() -> None:

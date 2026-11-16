@@ -53,6 +53,17 @@
 | `mode` | string | `"base64"` | - | 编解码方式：base64/hex/url |
 | `text` | string | `—` | ✅ | 待编码或解码的文本 |
 
+## FilesearchArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `content` | — | `null` | - | 内容子串（逐行匹配、大小写敏感） |
+| `limit` | — | `null` | - | 结果条数上限，0 或不提供表示不限制；CLI 走全局 `--limit`（ToolCtx.limit），
+ 此字段只服务 JSON 入口 |
+| `max_bytes` | integer | `1048576` | - | 内容检索时单文件字节上限，超过则跳过 |
+| `name` | — | `null` | - | 文件名 glob：`*`/`?` 不跨目录，`**` 跨目录；含分隔符时匹配相对路径，否则只匹配文件名 |
+| `root` | string | `—` | ✅ | 检索根目录 |
+
 ## PathInput
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

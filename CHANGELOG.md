@@ -68,6 +68,13 @@
   输出 `{program, path}`，未找到时 `path` 为 `null`。Windows 按 PATHEXT 追加扩展名、
   只要求普通文件；Unix 要求可执行位；含分隔符的输入按直接路径相对 cwd 解析。
   PATH、PATHEXT、平台与 cwd 均可注入，跨平台分支可在任一宿主上单测。
+- 新增工具 `filesearch`（system 域，别名 `filesearchtool`）：按文件名 glob 与内容子串检索文件，
+  输出 `{root, scanned, matched, truncated, results}`；结果路径相对 `ROOT` 且统一用 `/` 分隔，
+  内容模式返回 `{path, line, text}`（`line` 从 1 开始，行尾 `\r` 自动去掉）。glob 由
+  `fs::glob_match` 手写实现（`*`/`?` 不跨目录、`**` 跨目录且可匹配零层），未引入 `globset`；
+  匹配大小写敏感，三平台一致。条数上限沿用全局 `--limit`（写入 `ToolCtx.limit`，
+  未指定或 0 表示不限制），达到上限即提前停止；JSON 入口另提供同义 `limit` 字段。
+  内容模式默认跳过大于 `--max-bytes`（默认 1 MiB）的文件与二进制/非 UTF-8 文件。
 
 ### 变更
 

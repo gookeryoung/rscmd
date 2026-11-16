@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FilesearchArgs",
+  "type": "object",
+  "properties": {
+    "content": {
+      "description": "内容子串（逐行匹配、大小写敏感）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "limit": {
+      "description": "结果条数上限，0 或不提供表示不限制；CLI 走全局 `--limit`（ToolCtx.limit），\n 此字段只服务 JSON 入口",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint",
+      "default": null,
+      "minimum": 0
+    },
+    "max_bytes": {
+      "description": "内容检索时单文件字节上限，超过则跳过",
+      "type": "integer",
+      "format": "uint64",
+      "default": 1048576,
+      "minimum": 0
+    },
+    "name": {
+      "description": "文件名 glob：`*`/`?` 不跨目录，`**` 跨目录；含分隔符时匹配相对路径，否则只匹配文件名",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "root": {
+      "description": "检索根目录",
+      "type": "string"
+    }
+  },
+  "required": [
+    "root"
+  ]
+}

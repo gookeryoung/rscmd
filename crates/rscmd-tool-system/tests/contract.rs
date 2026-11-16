@@ -1,5 +1,52 @@
 use rscmd_core::ToolCtx;
+use rscmd_runtime::fs::temp_dir;
 use serde_json::json;
+
+#[test]
+fn filesearch_lists_name_matches_relative_to_root() {
+    let dir = temp_dir().unwrap();
+    std::fs::create_dir_all(dir.path().join("sub")).unwrap();
+    std::fs::write(dir.path().join("a.txt"), "needle").unwrap();
+    std::fs::write(dir.path().join("sub/b.txt"), "other").unwrap();
+    let def = rscmd_tool_system::filesearch::def();
+    let run = def.run_json.expect("filesearch 应暴露 JSON 入口");
+    let out = run(
+        &mut ToolCtx::default(),
+        &json!({"root": dir.path().to_string_lossy(), "name": "**/*.txt"}),
+    )
+    .unwrap();
+    assert_eq!(out["matched"], 2);
+    assert_eq!(out["results"][1]["path"], "sub/b.txt");
+}
+
+#[test]
+fn filesearch_content_matches_lines() {
+    let dir = temp_dir().unwrap();
+    std::fs::write(dir.path().join("a.txt"), "x\r\nneedle\r\n").unwrap();
+    let def = rscmd_tool_system::filesearch::def();
+    let run = def.run_json.expect("filesearch 应暴露 JSON 入口");
+    let out = run(
+        &mut ToolCtx::default(),
+        &json!({"root": dir.path().to_string_lossy(), "content": "needle"}),
+    )
+    .unwrap();
+    assert_eq!(out["results"][0]["line"], 2);
+    assert_eq!(out["results"][0]["text"], "needle");
+}
+
+#[test]
+fn filesearch_requires_a_filter() {
+    let dir = temp_dir().unwrap();
+    let def = rscmd_tool_system::filesearch::def();
+    let run = def.run_json.expect("filesearch 应暴露 JSON 入口");
+    let err = run(
+        &mut ToolCtx::default(),
+        &json!({"root": dir.path().to_string_lossy()}),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "INVALID_ARGS");
+    assert_eq!(err.exit_code(), 3);
+}
 
 #[test]
 fn path_normalize_unifies_separators() {
