@@ -39,6 +39,8 @@ mod tests {
         assert!(names.contains(&"hash"));
         #[cfg(feature = "system")]
         assert!(names.contains(&"path"));
+        #[cfg(feature = "system")]
+        assert!(names.contains(&"which"));
         assert!(!names.is_empty());
     }
 

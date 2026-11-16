@@ -26,3 +26,4 @@
 | `rscmd hash(hashtool)` | 计算文本或文件的 SHA-256（hex） |
 | `rscmd codec(codetool)` | 文本编解码：base64 / hex / URL |
 | `rscmd path(pathtool)` | 路径规范化、拼接、相对路径与绝对路径判定 |
+| `rscmd which(whichtool)` | 在 PATH 中查找可执行文件，返回绝对路径或 null |

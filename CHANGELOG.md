@@ -64,6 +64,10 @@
   `is-abs` 子命令，输出统一使用 `/` 分隔，绝对路径判定与宿主平台无关；
   `cfg(windows)` 下 `relative` 按大小写不敏感比较。
 - 新增 `rscmd-tool-system` 工具域，`rscmd-tools` 增加 `system` feature（默认启用）。
+- 新增工具 `which`（system 域，别名 `whichtool`）：按 PATH 顺序查找可执行文件，
+  输出 `{program, path}`，未找到时 `path` 为 `null`。Windows 按 PATHEXT 追加扩展名、
+  只要求普通文件；Unix 要求可执行位；含分隔符的输入按直接路径相对 cwd 解析。
+  PATH、PATHEXT、平台与 cwd 均可注入，跨平台分支可在任一宿主上单测。
 
 ### 变更
 

@@ -48,3 +48,27 @@ fn path_rejects_unknown_op() {
     assert_eq!(err.exit_code(), 3);
     assert_eq!(err.field.as_deref(), Some("op"));
 }
+
+#[test]
+fn which_returns_null_for_missing_program() {
+    let def = rscmd_tool_system::which::def();
+    let run = def.run_json.expect("which 应暴露 JSON 入口");
+    let mut ctx = ToolCtx::default();
+    let out = run(
+        &mut ctx,
+        &json!({"program": "rscmd-definitely-missing-xyz"}),
+    )
+    .unwrap();
+    assert!(out["path"].is_null());
+    assert_eq!(out["program"], "rscmd-definitely-missing-xyz");
+}
+
+#[test]
+fn which_rejects_empty_program() {
+    let def = rscmd_tool_system::which::def();
+    let run = def.run_json.expect("which 应暴露 JSON 入口");
+    let mut ctx = ToolCtx::default();
+    let err = run(&mut ctx, &json!({"program": ""})).unwrap_err();
+    assert_eq!(err.code, "INVALID_ARGS");
+    assert_eq!(err.exit_code(), 3);
+}

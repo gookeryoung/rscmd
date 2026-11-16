@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WhichArgs",
+  "type": "object",
+  "properties": {
+    "program": {
+      "description": "要查找的程序名（可含相对或绝对路径）",
+      "type": "string"
+    }
+  },
+  "required": [
+    "program"
+  ]
+}

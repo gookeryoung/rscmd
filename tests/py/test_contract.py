@@ -13,7 +13,7 @@ def test_version_matches_package() -> None:
 
 def test_tools_contains_p0_tools() -> None:
     names = {tool["name"] for tool in rscmd.tools()}
-    assert {"case", "wc", "json_fmt", "hash", "codec", "regex", "path"} <= names
+    assert {"case", "wc", "json_fmt", "hash", "codec", "regex", "path", "which"} <= names
 
 
 def test_invoke_codec_decodes_base64() -> None:
@@ -31,6 +31,11 @@ def test_invoke_regex_returns_matches() -> None:
 def test_invoke_path_normalizes() -> None:
     out = rscmd.invoke("path", {"op": "normalize", "path": "a\\b\\..\\c"})
     assert out["path"] == "a/c"
+
+
+def test_invoke_which_returns_null_for_missing() -> None:
+    out = rscmd.invoke("which", {"program": "rscmd-definitely-missing-xyz"})
+    assert out["path"] is None
 
 
 def test_invoke_hash_returns_sha256() -> None:

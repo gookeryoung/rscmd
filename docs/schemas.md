@@ -62,3 +62,9 @@
 | `parts` | array | `[]` | - | join 的路径片段 |
 | `path` | — | `null` | - | 待处理的路径（normalize/relative/is-abs） |
 
+## WhichArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `program` | string | `—` | ✅ | 要查找的程序名（可含相对或绝对路径） |
+
