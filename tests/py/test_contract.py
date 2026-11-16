@@ -13,7 +13,13 @@ def test_version_matches_package() -> None:
 
 def test_tools_contains_p0_tools() -> None:
     names = {tool["name"] for tool in rscmd.tools()}
-    assert {"case", "wc", "json_fmt"} <= names
+    assert {"case", "wc", "json_fmt", "hash"} <= names
+
+
+def test_invoke_hash_returns_sha256() -> None:
+    out = rscmd.invoke("hash", {"text": "abc"})
+    assert out["hex"] == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+    assert out["bytes"] == 3
 
 
 def test_invoke_success_returns_data() -> None:

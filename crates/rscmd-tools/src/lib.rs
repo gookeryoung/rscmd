@@ -13,6 +13,8 @@ pub fn tools() -> &'static [ToolDef] {
         tools.extend_from_slice(rscmd_tool_text::tools());
         #[cfg(feature = "data")]
         tools.extend_from_slice(rscmd_tool_data::tools());
+        #[cfg(feature = "crypto")]
+        tools.extend_from_slice(rscmd_tool_crypto::tools());
         tools
     })
 }
@@ -31,6 +33,8 @@ mod tests {
         assert!(names.contains(&"case"));
         #[cfg(feature = "data")]
         assert!(names.contains(&"json_fmt"));
+        #[cfg(feature = "crypto")]
+        assert!(names.contains(&"hash"));
         assert!(!names.is_empty());
     }
 

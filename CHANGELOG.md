@@ -21,6 +21,9 @@
 - `ERROR_CODE_KINDS` 登记 `TIMEOUT`（runtime，退出码 1）与 `INTERRUPTED`（interrupted，退出码 130）。
 - 新增内建命令 `rscmd completion <SHELL>`：按完整命令树生成 bash / zsh / fish / powershell 补全脚本，
   脚本原文走结果 `text` 字段（`--json` 下为 `rscmd-result/1` 信封）。
+- 新增工具 `hash`（crypto 域，别名 `hashtool`）：计算文本或文件的 SHA-256，返回 `hex`/`bytes`/`source`；
+  `TEXT` 与 `--file` 二选一，同时给出或都不给按 `INVALID_ARGS`（退出码 3）拒绝。
+- `ERROR_CODE_KINDS` 登记 `IO`（runtime，退出码 1），用于文件读取失败等运行期 IO 错误。
 
 ### 变更
 

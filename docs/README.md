@@ -31,5 +31,5 @@ uv tool install --editable .
 
 ## 当前状态
 
-- 工具数量：**3**
-- Schema 文件：`schema/` 下 5 个 `.json`
+- 工具数量：**4**
+- Schema 文件：`schema/` 下 6 个 `.json`

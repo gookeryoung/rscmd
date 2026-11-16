@@ -26,6 +26,7 @@ pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
     ("INVALID_JSON", ErrorKind::InvalidInput),
     // 运行期失败
     ("TIMEOUT", ErrorKind::Runtime),
+    ("IO", ErrorKind::Runtime),
     // 用户中断（Ctrl+C），退出码 130
     ("INTERRUPTED", ErrorKind::Interrupted),
 ];

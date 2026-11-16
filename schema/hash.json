@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "HashArgs",
+  "type": "object",
+  "properties": {
+    "file": {
+      "description": "读取文件内容计算摘要（与 TEXT 二选一）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "text": {
+      "description": "待计算摘要的文本（与 --file 二选一）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    }
+  }
+}
