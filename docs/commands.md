@@ -21,6 +21,7 @@
 |---|---|
 | `rscmd case(casetool)` | 命名风格转换（snake/camel/pascal/kebab） |
 | `rscmd wc` | 统计文本的行数、词数、字符数与字节数 |
+| `rscmd regex(regextool)` | 正则匹配、分组捕获与替换（Rust regex 语法） |
 | `rscmd json_fmt(jsonfmt)` | 校验并格式化 JSON；非法输入返回可自纠的错误 |
 | `rscmd hash(hashtool)` | 计算文本或文件的 SHA-256（hex） |
 | `rscmd codec(codetool)` | 文本编解码：base64 / hex / URL |

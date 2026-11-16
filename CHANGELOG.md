@@ -52,6 +52,14 @@
   `--mode` 选择方式、`--decode` 反向；base64 与 hex 为手写实现（不新增依赖），
   URL 编解码复用既有 `urlencoding`。输出固定为 `{mode, direction, text, bytes}`，
   CLI 与 `--json` 共用同一结果信封。
+- 新增工具 `regex`（text 域，别名 `regextool`）：匹配、分组捕获与替换，输出
+  `{pattern, count, matches:[{text,start,end,groups}]}`，`--replace` 时额外输出 `text`；
+  `start`/`end` 为 UTF-8 字节偏移，跨平台一致；`--size-limit` 限制自动机大小（默认 10 MiB，
+  0 为不限制）。
+- 新增依赖 `regex`（D1 逐个审批：线性时间无回溯引擎，用于 `regex` 工具；实测
+  release 二进制由 1,613,312 字节增至 3,115,520 字节，+1,502,208 字节 ≈ +1.43 MiB）。
+- `ERROR_CODE_KINDS` 登记 `INVALID_REGEX`（invalid_input，退出码 3），用于非法表达式与
+  超出 `--size-limit` 的编译失败。
 
 ### 变更
 
