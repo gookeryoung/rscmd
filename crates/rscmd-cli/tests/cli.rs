@@ -184,13 +184,7 @@ fn no_args_prints_help_and_lists_commands() {
 fn help_shows_aliases_in_parentheses() {
     let (code, stdout, _stderr) = run(&["--help"]);
     assert_eq!(code, 0);
-    for expected in [
-        "run(r)",
-        "info(i)",
-        "version(v)",
-        "doctor(d)",
-        "case(casetool)",
-    ] {
+    for expected in ["run(r)", "info(i)", "version(v)", "doctor(d)"] {
         assert!(stdout.contains(expected), "缺少 {expected}: {stdout}");
     }
     assert!(!stdout.contains("[alias"), "{stdout}");
@@ -200,17 +194,18 @@ fn help_shows_aliases_in_parentheses() {
     let tools_at = stdout.find("Tools:").expect("根帮助应有 Tools:");
     assert!(commands_at < tools_at, "{stdout}");
     assert!(stdout.find("doctor(d)").unwrap() < tools_at, "{stdout}");
-    assert!(
-        stdout.find("case(casetool)").unwrap() > tools_at,
-        "{stdout}"
-    );
+    assert!(stdout.find("\n  case").unwrap() > tools_at, "{stdout}");
+    // Tools 分组不展示缩写。
+    assert!(!stdout.contains("case(casetool)"), "{stdout}");
+    assert!(!stdout.contains("casetool"), "{stdout}");
 
     // `run` 的子命令全是工具，只显示 Tools 分组。
     let (code, stdout, _stderr) = run(&["run", "--help"]);
     assert_eq!(code, 0);
     assert!(stdout.contains("Tools:"), "{stdout}");
     assert!(!stdout.contains("Commands:"), "{stdout}");
-    assert!(stdout.contains("case(casetool)"), "{stdout}");
+    assert!(stdout.contains("\n  case"), "{stdout}");
+    assert!(!stdout.contains("casetool"), "{stdout}");
     assert!(!stdout.contains("[alias"), "{stdout}");
 }
 

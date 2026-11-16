@@ -200,11 +200,11 @@ fn builtin_command(name: &str) -> Command {
     cmd
 }
 
-/// 工具子命令；工具别名同样以可见形式注册，便于帮助中展示。
+/// 工具子命令；工具别名保持隐藏，帮助的 `Tools:` 分组只显示规范名。
 fn tool_command(tool: &'static ToolDef) -> Command {
     let mut cmd = (tool.build)();
     for alias in tool.meta.aliases {
-        cmd = cmd.visible_alias(*alias);
+        cmd = cmd.alias(*alias);
     }
     cmd
 }
@@ -240,9 +240,14 @@ fn parenthesize_aliases(text: &str) -> String {
 }
 
 fn push_grouped_commands(out: &mut Vec<String>, lines: &[&str]) {
-    let (commands, tools): (Vec<_>, Vec<_>) = parse_command_block(lines)
+    let (commands, mut tools): (Vec<_>, Vec<_>) = parse_command_block(lines)
         .into_iter()
         .partition(|entry| crate::registry::BUILTIN_COMMANDS.contains(&entry.name.as_str()));
+
+    // `Tools:` 分组不展示缩写，只保留规范名。
+    for entry in &mut tools {
+        entry.aliases.clear();
+    }
 
     if !commands.is_empty() {
         out.push("Commands:".to_string());
@@ -571,9 +576,9 @@ mod alias_render_tests {
 
     #[test]
     fn multiple_aliases_are_comma_separated() {
-        let input = "Commands:\n  x    做某事 [aliases: a, b]\n";
+        let input = "Commands:\n  run    做某事 [aliases: a, b]\n";
         let out = parenthesize_aliases(input);
-        assert!(out.contains("x(a, b)"), "{out}");
+        assert!(out.contains("run(a, b)"), "{out}");
     }
 
     #[test]
@@ -620,7 +625,10 @@ mod alias_render_tests {
         assert!(commands_at < tools_at, "{out}");
         assert!(out.find("run(r)").unwrap() < tools_at, "{out}");
         assert!(out.find("doctor(d)").unwrap() < tools_at, "{out}");
-        assert!(out.find("case(casetool)").unwrap() > tools_at, "{out}");
+        // Tools 分组只显示规范名，不显示缩写。
+        assert!(out.find("case").unwrap() > tools_at, "{out}");
+        assert!(!out.contains("case(casetool)"), "{out}");
+        assert!(!out.contains("casetool"), "{out}");
         assert!(out.find("wc").unwrap() > tools_at, "{out}");
     }
 
@@ -629,7 +637,8 @@ mod alias_render_tests {
         let input = "Commands:\n  case    转换 [alias: casetool]\n";
         let out = parenthesize_aliases(input);
         assert!(!out.contains("Commands:"), "{out}");
-        assert!(out.contains("Tools:"), "{out}");
+        assert!(out.contains("Tools:\n  case"), "{out}");
+        assert!(!out.contains("casetool"), "{out}");
     }
 
     #[test]

@@ -396,7 +396,8 @@ fn format_command(name: &str, aliases: &[&str]) -> String {
 fn generate_commands_doc() -> String {
     let mut out = String::from(
         "# 命令一览（自动生成，勿手改）\n\n\
-         本文件由 `cargo xtask gen-docs` 生成；短别名以括号标注，如 `rscmd doctor(d)`。\n\n\
+         本文件由 `cargo xtask gen-docs` 生成；内建命令的短别名以括号标注，如 `rscmd doctor(d)`；\n\
+         工具命令只显示规范名，别名见 [tools.md](./tools.md)。\n\n\
          ## 内建命令\n\n\
          | 命令 | 说明 |\n\
          |---|---|\n",
@@ -412,8 +413,8 @@ fn generate_commands_doc() -> String {
     out.push_str("\n## 工具命令\n\n| 命令 | 说明 |\n|---|---|\n");
     for tool in rscmd_tools::tools() {
         out.push_str(&format!(
-            "| {} | {} |\n",
-            format_command(tool.meta.name, tool.meta.aliases),
+            "| `rscmd {}` | {} |\n",
+            tool.meta.name,
             tool.meta.summary.replace('|', "\\|")
         ));
     }
