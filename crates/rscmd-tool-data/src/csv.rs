@@ -333,7 +333,7 @@ fn resolve_delimiter(input: &str, spec: &str) -> Result<u8, RscmdError> {
 }
 
 fn detect_delimiter(input: &str) -> u8 {
-    let candidates = [b',', b';', b'\t', b'|'];
+    let candidates = b",;\t|";
     let mut counts = [0usize; 4];
     let mut in_quotes = false;
     for ch in input.chars() {
