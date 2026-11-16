@@ -27,6 +27,14 @@ pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
     // 运行期失败
     ("TIMEOUT", ErrorKind::Runtime),
     ("IO", ErrorKind::Runtime),
+    // 网络与下载（与 rscmd-runtime 的 DownloadError::code 对应）
+    ("NET_TIMEOUT", ErrorKind::Runtime),
+    ("NET_HTTP_STATUS", ErrorKind::Runtime),
+    ("NET_TRANSPORT", ErrorKind::Runtime),
+    ("UNSUPPORTED_SCHEME", ErrorKind::InvalidInput),
+    ("RANGE_NOT_SUPPORTED", ErrorKind::Runtime),
+    ("RANGE_NOT_SATISFIABLE", ErrorKind::InvalidInput),
+    ("CHECKSUM_MISMATCH", ErrorKind::Runtime),
     // 用户中断（Ctrl+C），退出码 130
     ("INTERRUPTED", ErrorKind::Interrupted),
 ];

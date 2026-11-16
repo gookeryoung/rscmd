@@ -32,9 +32,17 @@
 - 新增 `rscmd mcp`：以 MCP stdio server 模式运行，支持 `initialize`、`ping`、`tools/list`、
   `tools/call`。仅暴露有 JSON 入口的非 GUI 工具，`inputSchema` 直接复用工具 schema；
   协议版本 2025-06-18。未引入第三方依赖；该模式只由 CLI 可执行文件提供。
+- 网络层新增可配置重试策略 `RetryPolicy { retries, backoff }` 与 `download_with` /
+  `download_resume_with`：默认 0 重试（保持原有行为），仅 5xx 与超时重试，退避按 2 的幂
+  递增且单次封顶 30s；4xx、scheme、Range 与校验失败不重试。
+- `DownloadError` 新增 `code()` 统一错误码（`NET_TIMEOUT` / `NET_HTTP_STATUS` /
+  `NET_TRANSPORT` / `UNSUPPORTED_SCHEME` / `RANGE_NOT_SUPPORTED` /
+  `RANGE_NOT_SATISFIABLE` / `CHECKSUM_MISMATCH` / `IO`），并登记进 `ERROR_CODE_KINDS`。
 
 ### 变更
 
+- 断点续传遇到 4xx/5xx 时按 HTTP 状态码报错（此前一律报「不支持 Range」）；
+  2xx 但非 206 仍报 `RANGE_NOT_SUPPORTED`。
 - **契约变更（breaking）**：`rscmd tools --json` 的 `data` 由裸数组改为 `rscmd-tools/1` 版本信封
   （`version` + `tools`），与 `rscmd schema` 的自描述风格一致。旧消费方需把 `data` 改为读取
   `data.tools`；单条元数据字段（`name`/`aliases`/`side_effects`/`python`/`gui`/`examples`）不变。
