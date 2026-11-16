@@ -210,7 +210,8 @@ fn tool_command(tool: &'static ToolDef) -> Command {
 }
 
 /// clap 把别名渲染成 `doctor  说明 [alias: d]`（追加在说明末尾）；
-/// 这里按 `Commands:` 区块整体重排为 `doctor(d)  说明`，并重新对齐说明列。
+/// 这里按 `Commands:` 区块整体重排为 `doctor(d)  说明`，并重新对齐说明列；
+/// 同时把内建命令与工具拆成 `Commands:` / `Tools:` 两组。
 fn parenthesize_aliases(text: &str) -> String {
     let lines: Vec<&str> = text.split('\n').collect();
     let mut out: Vec<String> = Vec::with_capacity(lines.len());
@@ -218,24 +219,42 @@ fn parenthesize_aliases(text: &str) -> String {
 
     while cursor < lines.len() {
         let line = lines[cursor];
-        out.push(line.to_string());
-        cursor += 1;
-        if line.trim() != "Commands:" {
+        if line.trim() == "Commands:" {
+            let start = cursor + 1;
+            cursor = start;
+            // 命令行固定缩进 2 格，续行缩进更深，遇空行或非缩进行结束。
+            while cursor < lines.len()
+                && !lines[cursor].trim().is_empty()
+                && lines[cursor].starts_with("  ")
+            {
+                cursor += 1;
+            }
+            push_grouped_commands(&mut out, &lines[start..cursor]);
             continue;
         }
-
-        // Commands 区块：命令行固定缩进 2 格，续行缩进更深，遇空行或非缩进行结束。
-        let start = cursor;
-        while cursor < lines.len()
-            && !lines[cursor].trim().is_empty()
-            && lines[cursor].starts_with("  ")
-        {
-            cursor += 1;
-        }
-        out.extend(render_command_block(&lines[start..cursor]));
+        out.push(line.to_string());
+        cursor += 1;
     }
 
     out.join("\n")
+}
+
+fn push_grouped_commands(out: &mut Vec<String>, lines: &[&str]) {
+    let (commands, tools): (Vec<_>, Vec<_>) = parse_command_block(lines)
+        .into_iter()
+        .partition(|entry| crate::registry::BUILTIN_COMMANDS.contains(&entry.name.as_str()));
+
+    if !commands.is_empty() {
+        out.push("Commands:".to_string());
+        out.extend(render_command_entries(commands));
+    }
+    if !tools.is_empty() {
+        if out.last().is_some_and(|line| !line.is_empty()) {
+            out.push(String::new());
+        }
+        out.push("Tools:".to_string());
+        out.extend(render_command_entries(tools));
+    }
 }
 
 struct CommandEntry {
@@ -254,7 +273,7 @@ impl CommandEntry {
     }
 }
 
-fn render_command_block(lines: &[&str]) -> Vec<String> {
+fn parse_command_block(lines: &[&str]) -> Vec<CommandEntry> {
     let mut entries: Vec<CommandEntry> = Vec::new();
     for line in lines {
         if let Some(raw) = line.strip_prefix("  ") {
@@ -278,6 +297,10 @@ fn render_command_block(lines: &[&str]) -> Vec<String> {
         }
     }
 
+    entries
+}
+
+fn render_command_entries(entries: Vec<CommandEntry>) -> Vec<String> {
     let width = entries
         .iter()
         .map(|entry| entry.display().chars().count())
@@ -583,8 +606,30 @@ mod alias_render_tests {
 
     #[test]
     fn command_without_about_gets_no_trailing_padding() {
+        // `x` 不是内建命令，归入 Tools 组。
         let input = "Commands:\n  x\n";
-        assert_eq!(parenthesize_aliases(input), "Commands:\n  x\n");
+        assert_eq!(parenthesize_aliases(input), "Tools:\n  x\n");
+    }
+
+    #[test]
+    fn commands_and_tools_are_grouped() {
+        let input = "Commands:\n  run       运行指定工具 [alias: r]\n  case      转换大小写 [alias: casetool]\n  doctor    环境自检 [alias: d]\n  wc        统计文本\n";
+        let out = parenthesize_aliases(input);
+        let commands_at = out.find("Commands:").expect(&out);
+        let tools_at = out.find("Tools:").expect(&out);
+        assert!(commands_at < tools_at, "{out}");
+        assert!(out.find("run(r)").unwrap() < tools_at, "{out}");
+        assert!(out.find("doctor(d)").unwrap() < tools_at, "{out}");
+        assert!(out.find("case(casetool)").unwrap() > tools_at, "{out}");
+        assert!(out.find("wc").unwrap() > tools_at, "{out}");
+    }
+
+    #[test]
+    fn tools_only_block_uses_tools_heading() {
+        let input = "Commands:\n  case    转换 [alias: casetool]\n";
+        let out = parenthesize_aliases(input);
+        assert!(!out.contains("Commands:"), "{out}");
+        assert!(out.contains("Tools:"), "{out}");
     }
 
     #[test]

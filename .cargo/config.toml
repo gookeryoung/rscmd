@@ -1,2 +1,9 @@
 [alias]
 xtask = "run --quiet -p xtask --"
+
+# F: 盘为 ReFS 时，rustc 增量会话收尾会报
+# `did not finalize incremental compilation session directory ... os error 5`，
+# 且缓存无法复用、`*-working` 目录持续堆积。
+# 如需增量编译，请在 NTFS 上设置 CARGO_TARGET_DIR 后再覆盖此开关。
+[build]
+incremental = false

@@ -195,8 +195,21 @@ fn help_shows_aliases_in_parentheses() {
     }
     assert!(!stdout.contains("[alias"), "{stdout}");
 
+    // 帮助按「命令 / 工具」分组：内建命令在前，工具在后。
+    let commands_at = stdout.find("Commands:").expect("根帮助应有 Commands:");
+    let tools_at = stdout.find("Tools:").expect("根帮助应有 Tools:");
+    assert!(commands_at < tools_at, "{stdout}");
+    assert!(stdout.find("doctor(d)").unwrap() < tools_at, "{stdout}");
+    assert!(
+        stdout.find("case(casetool)").unwrap() > tools_at,
+        "{stdout}"
+    );
+
+    // `run` 的子命令全是工具，只显示 Tools 分组。
     let (code, stdout, _stderr) = run(&["run", "--help"]);
     assert_eq!(code, 0);
+    assert!(stdout.contains("Tools:"), "{stdout}");
+    assert!(!stdout.contains("Commands:"), "{stdout}");
     assert!(stdout.contains("case(casetool)"), "{stdout}");
     assert!(!stdout.contains("[alias"), "{stdout}");
 }
