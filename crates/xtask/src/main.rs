@@ -1013,6 +1013,10 @@ fn wheel_smoke() -> Result<()> {
     let smoke = Command::new(&python)
         .arg("-c")
         .arg(script)
+        // Windows 控制台默认 cp1252/cp936，脚本里的中文会触发 UnicodeEncodeError；
+        // 固定 UTF-8 输出，与 CI 日志编码一致。
+        .env("PYTHONIOENCODING", "utf-8")
+        .env("PYTHONUTF8", "1")
         .current_dir(&root)
         .status()
         .map_err(|err| format!("执行 wheel 冒烟失败: {err}"))?;
