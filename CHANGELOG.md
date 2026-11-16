@@ -75,6 +75,10 @@
   匹配大小写敏感，三平台一致。条数上限沿用全局 `--limit`（写入 `ToolCtx.limit`，
   未指定或 0 表示不限制），达到上限即提前停止；JSON 入口另提供同义 `limit` 字段。
   内容模式默认跳过大于 `--max-bytes`（默认 1 MiB）的文件与二进制/非 UTF-8 文件。
+- 新增工具 `stat`（data 域，别名 `stattool`）：对数值列表输出
+  `{count, sum, mean, median, percentiles}`；分位数用 `p/100*(n-1)` 线性插值，
+  0/100 对应最小/最大值，`--percentile` 可重复或逗号分隔。空输入、非有限数值、
+  超出 0–100 的分位数返回 `INVALID_ARGS`（field 分别为 `values`/`percentiles`）。
 
 ### 变更
 

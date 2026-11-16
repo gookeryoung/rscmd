@@ -34,6 +34,8 @@ mod tests {
         #[cfg(feature = "text")]
         assert!(names.contains(&"case"));
         #[cfg(feature = "data")]
+        assert!(names.contains(&"stat"));
+        #[cfg(feature = "data")]
         assert!(names.contains(&"json_fmt"));
         #[cfg(feature = "crypto")]
         assert!(names.contains(&"hash"));

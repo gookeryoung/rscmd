@@ -24,7 +24,15 @@ def test_tools_contains_p0_tools() -> None:
         "path",
         "which",
         "filesearch",
+        "stat",
     } <= names
+
+
+def test_invoke_stat() -> None:
+    out = rscmd.invoke("stat", {"values": [1, 2, 3, 4], "percentiles": [90]})
+    assert out["count"] == 4
+    assert out["median"] == 2.5
+    assert abs(out["percentiles"][0]["value"] - 3.7) < 1e-9
 
 
 def test_invoke_filesearch_finds_name(tmp_path: Path) -> None:

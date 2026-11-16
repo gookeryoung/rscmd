@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "StatArgs",
+  "type": "object",
+  "properties": {
+    "percentiles": {
+      "description": "需要计算的分位数（0–100，可重复或逗号分隔）",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "number",
+        "format": "double"
+      }
+    },
+    "values": {
+      "description": "待统计的数值，至少一个；支持负数",
+      "type": "array",
+      "items": {
+        "type": "number",
+        "format": "double"
+      }
+    }
+  },
+  "required": [
+    "values"
+  ]
+}
