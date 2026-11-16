@@ -6,6 +6,8 @@
 use sha2::{Digest, Sha256};
 use std::time::Duration;
 
+use crate::cache::DownloadCache;
+
 /// URL query 编码。把 `key=value` 序列化为 `application/x-www-form-urlencoded`。
 pub fn encode_query<I, K, V>(pairs: I) -> String
 where
@@ -135,6 +137,26 @@ pub fn download_resume_with(
         }
         http_download(url, timeout, Some(offset))
     })
+}
+
+/// 带下载缓存与重试策略的下载：
+/// - 命中缓存直接返回，不发起网络请求；
+/// - 未命中时按 [`download_with`] 下载，成功后写回缓存；
+/// - 缓存未启用（`None`）或写入失败时静默跳过，下载结果不受影响。
+pub fn download_with_cache(
+    url: &str,
+    timeout: Duration,
+    policy: RetryPolicy,
+    cache: Option<&DownloadCache>,
+) -> Result<Vec<u8>, DownloadError> {
+    if let Some(data) = cache.and_then(|cache| cache.get(url)) {
+        return Ok(data);
+    }
+    let data = download_with(url, timeout, policy)?;
+    if let Some(cache) = cache {
+        cache.put(url, &data);
+    }
+    Ok(data)
 }
 
 /// 按策略执行操作：仅可重试错误消耗重试次数，其余错误立即返回。
@@ -641,6 +663,83 @@ mod tests {
         let data = download_resume_with(&url, 2, Duration::from_secs(5), policy).unwrap();
         assert_eq!(data, b"lo!");
         assert_eq!(handle.join().unwrap(), 2);
+    }
+
+    #[test]
+    fn cached_download_does_not_refetch() {
+        let dir = crate::fs::temp_dir().unwrap();
+        let cache = crate::cache::DownloadCache::with_clock(
+            dir.path().to_path_buf(),
+            crate::cache::CachePolicy::default(),
+            Box::new(std::time::SystemTime::now),
+        );
+        let (url, handle) =
+            serve_once(b"HTTP/1.1 200 OK\r\nContent-Length: 5\r\nConnection: close\r\n\r\nhello");
+        let first = download_with_cache(
+            &url,
+            Duration::from_secs(5),
+            RetryPolicy::default(),
+            Some(&cache),
+        )
+        .unwrap();
+        assert_eq!(first, b"hello");
+        handle.join().unwrap();
+
+        // 服务器只服务一次，第二次必须命中缓存，否则会连接失败。
+        let second = download_with_cache(
+            &url,
+            Duration::from_secs(5),
+            RetryPolicy::default(),
+            Some(&cache),
+        )
+        .unwrap();
+        assert_eq!(second, b"hello");
+    }
+
+    #[test]
+    fn failed_download_is_not_cached() {
+        let dir = crate::fs::temp_dir().unwrap();
+        let cache = crate::cache::DownloadCache::with_clock(
+            dir.path().to_path_buf(),
+            crate::cache::CachePolicy::default(),
+            Box::new(std::time::SystemTime::now),
+        );
+        let (url, _handle) =
+            serve_once(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let err = download_with_cache(
+            &url,
+            Duration::from_secs(5),
+            RetryPolicy::default(),
+            Some(&cache),
+        )
+        .unwrap_err();
+        assert_eq!(err.code(), "NET_HTTP_STATUS");
+        assert!(cache.get(&url).is_none(), "失败结果不应写入缓存");
+    }
+
+    #[test]
+    fn unusable_cache_degrades_to_plain_download() {
+        let dir = crate::fs::temp_dir().unwrap();
+        // 用普通文件占据缓存根目录，构造出的缓存句柄读写都会静默失败。
+        let blocked = dir.path().join("blocked");
+        std::fs::write(&blocked, b"file").unwrap();
+        let cache = crate::cache::DownloadCache::with_clock(
+            blocked,
+            crate::cache::CachePolicy::default(),
+            Box::new(std::time::SystemTime::now),
+        );
+        let (url, handle) =
+            serve_once(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok");
+        let data = download_with_cache(
+            &url,
+            Duration::from_secs(5),
+            RetryPolicy::default(),
+            Some(&cache),
+        )
+        .unwrap();
+        assert_eq!(data, b"ok");
+        handle.join().unwrap();
+        assert!(cache.get(&url).is_none());
     }
 
     /// 需要联网：下载 example.com 首页。失败视为环境限制（如离线），不算测试失败。

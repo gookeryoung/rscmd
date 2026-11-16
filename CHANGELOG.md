@@ -38,6 +38,14 @@
 - `DownloadError` 新增 `code()` 统一错误码（`NET_TIMEOUT` / `NET_HTTP_STATUS` /
   `NET_TRANSPORT` / `UNSUPPORTED_SCHEME` / `RANGE_NOT_SUPPORTED` /
   `RANGE_NOT_SATISFIABLE` / `CHECKSUM_MISMATCH` / `IO`），并登记进 `ERROR_CODE_KINDS`。
+- `rscmd-runtime` 新增目录 resolver（`home::Dirs::resolve`）：按 `RSCMD_HOME` >
+  Windows `LOCALAPPDATA` / macOS `~/Library/Application Support` / Linux
+  `XDG_DATA_HOME` 或 `~/.local/share` 解析统一根目录，环境变量、平台与主目录均可注入；
+  子目录 `cache/downloads`、`state`、`logs` 只拼接不创建，见 ADR 0001。
+- `rscmd-runtime` 新增下载缓存（`cache::DownloadCache`）：URL 规范化 SHA-256 内容寻址、
+  默认 TTL 7 天、256 MiB / 1024 条容量上限与写后淘汰；损坏、过期、孤立文件自动清理。
+  `net::download_with_cache` 命中不重复下载，未启用或目录不可写时静默降级为直接下载。
+  纯新增能力，现有工具行为与 JSON 契约不变。
 
 ### 变更
 
