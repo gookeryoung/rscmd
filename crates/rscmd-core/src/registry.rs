@@ -86,8 +86,12 @@ impl Registry {
         let mut problems = Vec::new();
         let mut names: HashSet<&str> = HashSet::new();
 
-        for builtin in BUILTIN_COMMANDS {
-            names.insert(builtin);
+        // 内建命令的名称与短别名都不可被工具占用：两者的别名都会挂到同一棵 clap 命令树上。
+        for builtin in BUILTINS {
+            names.insert(builtin.name);
+            for alias in builtin.aliases {
+                names.insert(alias);
+            }
         }
 
         for tool in self.tools {
@@ -140,5 +144,102 @@ impl Registry {
         } else {
             Err(problems)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ctx::ToolCtx;
+    use crate::errors::RscmdError;
+    use crate::tool::{CliRun, SideEffects, ToolMeta};
+    use clap::{ArgMatches, Command};
+    use serde_json::Value;
+
+    fn build() -> Command {
+        Command::new("fixture")
+    }
+
+    fn run(_ctx: &mut ToolCtx, _matches: &ArgMatches) -> Result<Value, RscmdError> {
+        Ok(Value::Null)
+    }
+
+    /// 构造只含一个夹具工具的注册表；夹具全部泄漏成 `'static`，符合 `ToolDef` 的约束。
+    fn registry(name: &'static str, aliases: &'static [&'static str]) -> &'static Registry {
+        registry_with_summary(name, aliases, "测试用工具")
+    }
+
+    fn registry_with_summary(
+        name: &'static str,
+        aliases: &'static [&'static str],
+        summary: &'static str,
+    ) -> &'static Registry {
+        static RUN: CliRun = run;
+        let tool = ToolDef {
+            meta: Box::leak(Box::new(ToolMeta {
+                name,
+                aliases,
+                summary,
+                side_effects: SideEffects::None,
+                gui: false,
+                python: PythonExposure::ArgvOnly,
+                examples: &["rscmd fixture"],
+            })),
+            build,
+            run: RUN,
+            run_json: None,
+            schema: None,
+        };
+        let tools: &'static [ToolDef] = Box::leak(vec![tool].into_boxed_slice());
+        Box::leak(Box::new(Registry::new(tools)))
+    }
+
+    #[test]
+    fn rejects_alias_taken_by_builtin_short_alias() {
+        // `d` 是 doctor 的短别名，工具再占用会在 clap 命令树上撞车。
+        let problems = registry("fixture", &["d"]).validate().unwrap_err();
+        assert!(
+            problems.iter().any(|problem| problem.contains("`d`")),
+            "{problems:?}"
+        );
+    }
+
+    #[test]
+    fn rejects_tool_named_like_builtin() {
+        let problems = registry("doctor", &[]).validate().unwrap_err();
+        assert!(
+            problems
+                .iter()
+                .any(|problem| problem.contains("工具名或别名冲突: `doctor`")),
+            "{problems:?}"
+        );
+    }
+
+    #[test]
+    fn accepts_unreserved_alias() {
+        assert!(registry("fixture", &["fx"]).validate().is_ok());
+    }
+
+    #[test]
+    fn rejects_tool_without_summary() {
+        let problems = registry_with_summary("fixture", &[], " ")
+            .validate()
+            .unwrap_err();
+        assert!(
+            problems.iter().any(|problem| problem.contains("缺少摘要")),
+            "{problems:?}"
+        );
+    }
+
+    #[test]
+    fn fixture_tool_is_clap_invocable() {
+        // 夹具的 build/run 也要真实走一遍，避免测试辅助代码成为未覆盖行。
+        let registry = registry("fixture", &[]);
+        let tool = &registry.tools()[0];
+        let matches = (tool.build)()
+            .try_get_matches_from(["fixture"])
+            .expect("夹具命令应可解析");
+        let out = (tool.run)(&mut ToolCtx::default(), &matches).expect("夹具应返回 Ok");
+        assert_eq!(out, Value::Null);
     }
 }
