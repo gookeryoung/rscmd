@@ -81,6 +81,16 @@ def test_run_argv_run_short_alias() -> None:
     assert envelope["ok"] is True
 
 
+def test_run_argv_tools_returns_version_envelope() -> None:
+    """`rscmd tools` 的 data 是 rscmd-tools/1 信封，不再是裸数组（breaking 变更）。"""
+    envelope = rscmd.run_argv(["tools"])
+    data = envelope["data"]
+    assert data["schema"] == "rscmd-tools/1"
+    assert data["version"] == rscmd.__version__
+    assert isinstance(data["tools"], list)
+    assert all("aliases" in tool and "side_effects" in tool for tool in data["tools"])
+
+
 def test_run_argv_run_without_tool_is_error() -> None:
     """rscmd run 不带工具名 → USAGE / MISSING_TOOL"""
     with pytest.raises(rscmd.RscmdError) as info:

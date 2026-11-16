@@ -88,15 +88,30 @@ fn negative_timeout_is_usage_error() {
 fn tools_lists_builtin_tools() {
     let (code, stdout, _stderr) = run(&["--json", "tools"]);
     assert_eq!(code, 0);
-    let items = parse_json(&stdout);
-    let names: Vec<&str> = items["data"]
+    let envelope = parse_json(&stdout);
+    // `data` 是版本信封（rscmd-tools/1），不再是裸数组。
+    assert_eq!(envelope["data"]["schema"], "rscmd-tools/1");
+    assert_eq!(envelope["data"]["version"], env!("CARGO_PKG_VERSION"));
+    let names: Vec<&str> = envelope["data"]["tools"]
         .as_array()
-        .expect("data 应返回数组")
+        .expect("data.tools 应返回数组")
         .iter()
         .filter_map(|item| item["name"].as_str())
         .collect();
     assert!(names.contains(&"case"));
     assert!(names.contains(&"json_fmt"));
+}
+
+#[test]
+fn result_envelope_has_no_subcommand_for_plain_tools() {
+    let (code, stdout, _stderr) = run(&["--json", "case", "HelloWorld"]);
+    assert_eq!(code, 0);
+    let envelope = parse_json(&stdout);
+    assert_eq!(envelope["schema"], "rscmd-result/1");
+    assert!(
+        envelope.get("subcommand").is_none(),
+        "无子命令的工具不应出现该键: {envelope}"
+    );
 }
 
 #[test]

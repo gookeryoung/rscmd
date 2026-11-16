@@ -5,6 +5,9 @@
 需要机器可读的全量自描述时，运行 `rscmd schema --json`：
 `data` 为 `rscmd-schema/1` 对象，含 `version`、`tools`、`builtins`、`global` 四个字段。
 
+只列工具时运行 `rscmd tools --json`：`data` 为 `rscmd-tools/1` 对象，含 `version` 与 `tools`，
+每个条目与 `schema.tools` 同源（含 `aliases` 与 `side_effects`）。
+
 ## CaseArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

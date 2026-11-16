@@ -29,7 +29,7 @@ fn render_body(outcome: &Outcome) -> (String, String) {
         Ok(data) => {
             if outcome.json {
                 let ok = !builtins::check_failed(&outcome.tool, data);
-                let env = envelope::result(&outcome.tool, data.clone(), ok);
+                let env = envelope::result(&outcome.tool, outcome.subcommand(), data.clone(), ok);
                 (format!("{}\n", compact(&env)), String::new())
             } else if outcome.quiet {
                 (String::new(), String::new())

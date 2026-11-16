@@ -27,9 +27,16 @@
 - `rscmd doctor` 新增两项检查：`Python 扩展`（`_native` 产物是否旧于最新 Rust 源码，安装态或未构建时跳过）
   与 `终端编码`（控制台代码页不是 UTF-8 时给出 `chcp 65001` 建议），检查项由 3 项增至 5 项；
   环境结论可通过 `DoctorProbe` 注入，便于单测覆盖各分支。
+- 结果信封新增可选 `subcommand` 字段：工具带下级子命令时写入子命令名；普通工具不出现该键。
+  属兼容扩展（`rscmd-result/1` 不变），无子命令时消费方看到的字段集合与之前完全一致。
 
 ### 变更
 
+- **契约变更（breaking）**：`rscmd tools --json` 的 `data` 由裸数组改为 `rscmd-tools/1` 版本信封
+  （`version` + `tools`），与 `rscmd schema` 的自描述风格一致。旧消费方需把 `data` 改为读取
+  `data.tools`；单条元数据字段（`name`/`aliases`/`side_effects`/`python`/`gui`/`examples`）不变。
+- `rscmd schema` 的每个工具条目固定输出 `aliases` 与 `side_effects`，并用契约测试锁定
+  （字段此前已输出，本次只补契约与文档，属兼容扩展）。
 - CLI 帮助与命令一览中的短别名改为 `doctor(d)` 形式：内建命令的名称/别名/说明集中登记在
   `registry::BUILTINS`，帮助由该表构造，`cargo xtask gen-docs` 新增 `docs/commands.md`。
 - 注册表校验的保留名范围扩展到内建命令短别名（`r`/`i`/`v`/`d`）：工具名或别名与内建命令撞车时

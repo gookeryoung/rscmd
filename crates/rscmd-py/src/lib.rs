@@ -80,7 +80,8 @@ fn run_argv(py: Python<'_>, argv: Vec<String>) -> PyResult<PyObject> {
     match &outcome.result {
         Ok(data) => {
             let ok = !rscmd_core::builtins::check_failed(&outcome.tool, data);
-            let envelope = rscmd_core::envelope::result(&outcome.tool, data.clone(), ok);
+            let envelope =
+                rscmd_core::envelope::result(&outcome.tool, outcome.subcommand(), data.clone(), ok);
             Ok(pythonize::pythonize(py, &envelope)?.unbind())
         }
         Err(err) => Err(native_error(err)),

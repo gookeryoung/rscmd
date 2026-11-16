@@ -106,6 +106,33 @@ static PROBE_TOOLS: [ToolDef; 1] = [ToolDef {
     schema: None,
 }];
 
+/// 带真实下级子命令的工具；当前业务工具还没有子命令，用它固定 `subcommand` 字段契约。
+static META_NESTED: ToolMeta = ToolMeta {
+    name: "nested",
+    aliases: &[],
+    summary: "带下级子命令的测试工具",
+    side_effects: SideEffects::None,
+    gui: false,
+    python: PythonExposure::Hidden,
+    examples: &["rscmd nested inner"],
+};
+
+fn build_nested() -> Command {
+    Command::new("nested").subcommand(Command::new("inner"))
+}
+
+fn run_nested(_ctx: &mut ToolCtx, matches: &ArgMatches) -> Result<Value, RscmdError> {
+    Ok(json!({ "sub": matches.subcommand_name().unwrap_or("none") }))
+}
+
+static NESTED_TOOLS: [ToolDef; 1] = [ToolDef {
+    meta: &META_NESTED,
+    build: build_nested,
+    run: run_nested,
+    run_json: None,
+    schema: None,
+}];
+
 fn argv(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| item.to_string()).collect()
 }
@@ -113,6 +140,7 @@ fn argv(items: &[&str]) -> Vec<String> {
 fn outcome(tool: &str, result: Result<Value, RscmdError>, json_mode: bool) -> Outcome {
     Outcome {
         tool: tool.to_string(),
+        subcommand: String::new(),
         result,
         json: json_mode,
         quiet: false,
@@ -552,12 +580,19 @@ fn completion_rejects_unknown_shell() {
 
 #[test]
 fn dispatch_builtins() {
-    let out = dispatch(&TOOLS, &argv(&["tools"]));
-    assert_eq!(out.result.unwrap().as_array().unwrap().len(), 2);
+    let data = dispatch(&TOOLS, &argv(&["tools"])).result.unwrap();
+    assert_eq!(data["schema"], "rscmd-tools/1");
+    assert_eq!(data["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(data["tools"].as_array().unwrap().len(), 2);
+    // 契约固定：每个条目都带 `aliases` 与 `side_effects`，与 `schema.tools` 同源。
+    assert_eq!(data["tools"][0]["aliases"], json!(["a"]));
+    assert_eq!(data["tools"][0]["side_effects"], "none");
 
-    let out = dispatch(&TOOLS, &argv(&["tools", "--for-llm"]));
-    let items = out.result.unwrap();
-    assert_eq!(items.as_array().unwrap().len(), 1);
+    let data = dispatch(&TOOLS, &argv(&["tools", "--for-llm"]))
+        .result
+        .unwrap();
+    let items = data["tools"].as_array().unwrap();
+    assert_eq!(items.len(), 1);
     assert_eq!(items[0]["name"], "alpha");
 
     let out = dispatch(&TOOLS, &argv(&["info", "a"]));
@@ -571,6 +606,9 @@ fn dispatch_builtins() {
     assert_eq!(data["schema"], "rscmd-schema/1");
     assert_eq!(data["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(data["tools"].as_array().unwrap().len(), 2);
+    // 契约固定：`schema.tools[i]` 显式包含别名与副作用，机器消费方无需再解析帮助文本。
+    assert_eq!(data["tools"][0]["aliases"], json!(["a"]));
+    assert_eq!(data["tools"][0]["side_effects"], "none");
     let builtins = data["builtins"].as_array().unwrap();
     assert!(builtins.contains(&json!("doctor")));
     assert_eq!(data["global"]["title"], "GlobalArgs");
@@ -581,6 +619,40 @@ fn dispatch_builtins() {
 
     let out = dispatch(&TOOLS, &argv(&["doctor"]));
     assert_eq!(out.result.unwrap()["tool_count"], 2);
+}
+
+#[test]
+fn tools_envelope_is_versioned_and_breaks_array_consumers() {
+    let data = dispatch(&TOOLS, &argv(&["tools"])).result.unwrap();
+    // 新消费方式：先认版本，再从 `tools` 取列表。
+    assert_eq!(data["schema"], "rscmd-tools/1");
+    assert!(data["tools"].is_array());
+    // 旧消费方式：`data` 不再是裸数组（breaking，已在 CHANGELOG 标注）。
+    assert!(data.as_array().is_none());
+}
+
+#[test]
+fn envelope_subcommand_only_present_for_nested_tools() {
+    // 普通工具：字段集合与 1.x 完全一致，不出现 `subcommand` 键。
+    let out = dispatch(&TOOLS, &argv(&["alpha", "hi"]));
+    assert_eq!(out.exit_code(), 0);
+    assert!(out.subcommand().is_none());
+
+    // 带下级子命令的工具：直达与 `run` 嵌套入口都要带上子命令名。
+    let out = dispatch(&NESTED_TOOLS, &argv(&["nested", "inner"]));
+    assert_eq!(out.subcommand(), Some("inner"));
+    assert_eq!(out.result.as_ref().unwrap()["sub"], "inner");
+
+    let out = dispatch(&NESTED_TOOLS, &argv(&["run", "nested", "inner"]));
+    assert_eq!(out.subcommand(), Some("inner"));
+
+    // JSON 信封里可见该字段，且 `tool` 仍是工具名而非子命令名。
+    let out = dispatch(&NESTED_TOOLS, &argv(&["--json", "nested", "inner"]));
+    let (stdout, _) = render(&out);
+    let envelope: Value = serde_json::from_str(stdout.trim()).unwrap();
+    assert_eq!(envelope["subcommand"], "inner");
+    assert_eq!(envelope["tool"], "nested");
+    assert_eq!(envelope["schema"], "rscmd-result/1");
 }
 
 #[test]
@@ -672,6 +744,7 @@ fn doctor_flags_broken_registry_and_empty_tools() {
 
     let out = Outcome {
         tool: "doctor".to_string(),
+        subcommand: String::new(),
         result: Ok(data),
         json: false,
         quiet: false,

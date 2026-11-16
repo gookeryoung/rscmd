@@ -26,6 +26,8 @@ use crate::tool::{meta_json, ToolDef};
 
 pub struct Outcome {
     pub tool: String,
+    /// 工具自身的下级子命令；空串表示该工具没有子命令（大多数工具如此）。
+    pub subcommand: String,
     pub result: Result<Value, RscmdError>,
     pub json: bool,
     pub quiet: bool,
@@ -36,6 +38,11 @@ pub struct Outcome {
 }
 
 impl Outcome {
+    /// 结果信封里的 `subcommand`：仅当工具带下级子命令时返回 `Some`。
+    pub fn subcommand(&self) -> Option<&str> {
+        (!self.subcommand.is_empty()).then_some(self.subcommand.as_str())
+    }
+
     pub fn exit_code(&self) -> i32 {
         match &self.result {
             Ok(data) if builtins::check_failed(&self.tool, data) => {
@@ -51,6 +58,7 @@ impl Outcome {
     pub fn interrupted(flags: &RawFlags) -> Self {
         Self {
             tool: String::new(),
+            subcommand: String::new(),
             result: Err(RscmdError::coded("INTERRUPTED", "操作被用户中断（Ctrl+C）")),
             json: flags.json,
             quiet: false,
@@ -101,6 +109,7 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
                 let text = parenthesize_aliases(&err.to_string());
                 return Outcome {
                     tool: String::new(),
+                    subcommand: String::new(),
                     result: Ok(json!({ "text": text.trim_end() })),
                     json: raw_json,
                     quiet: raw_quiet,
@@ -110,6 +119,7 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
             }
             Outcome {
                 tool: String::new(),
+                subcommand: String::new(),
                 result: Err(RscmdError::coded(
                     "USAGE",
                     err.to_string().trim_end().to_string(),
@@ -318,6 +328,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
             let help = parenthesize_aliases(&cmd.render_help().to_string());
             return Outcome {
                 tool: String::new(),
+                subcommand: String::new(),
                 result: Ok(json!({ "text": help })),
                 json: matches.get_flag(GLOBAL_JSON),
                 quiet: matches.get_flag(GLOBAL_QUIET),
@@ -357,6 +368,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
             let result = invoke_tool(tools, tool_name, tool_matches, &mut ctx);
             return Outcome {
                 tool: tool_name.to_string(),
+                subcommand: nested_subcommand(tool_matches),
                 result,
                 json,
                 quiet,
@@ -367,6 +379,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
         // rscmd run 不带工具名 → USAGE 错误
         return Outcome {
             tool: "run".to_string(),
+            subcommand: String::new(),
             result: Err(RscmdError::coded(
                 "MISSING_TOOL",
                 "rscmd run 后需要一个工具名，例如 `rscmd run case --text hello`",
@@ -405,12 +418,18 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
 
     Outcome {
         tool: name.to_string(),
+        subcommand: nested_subcommand(sub),
         result,
         json,
         quiet,
         verbose,
         elapsed_ms: started.elapsed().as_millis(),
     }
+}
+
+/// 工具自身的下级子命令名；没有下级子命令（含全部内建命令）时返回空串。
+fn nested_subcommand(matches: &clap::ArgMatches) -> String {
+    matches.subcommand_name().unwrap_or_default().to_string()
 }
 
 /// `rscmd completion <SHELL>`：按完整命令树生成补全脚本，脚本原文放在 `text` 字段。
@@ -452,13 +471,18 @@ pub fn schema_data(tools: &'static [ToolDef]) -> Value {
     })
 }
 
+/// `rscmd tools` 的 `data`：版本信封 + 工具元数据列表（每项含 `aliases` 与 `side_effects`）。
 fn list_tools(tools: &'static [ToolDef], for_llm: bool) -> Result<Value, RscmdError> {
     let items: Vec<Value> = tools
         .iter()
         .filter(|tool| !for_llm || !tool.meta.gui)
         .map(meta_json)
         .collect();
-    Ok(Value::Array(items))
+    Ok(json!({
+        "schema": envelope::TOOLS_CONTRACT,
+        "version": env!("CARGO_PKG_VERSION"),
+        "tools": items,
+    }))
 }
 
 fn find_tool<'a>(tools: &'a [ToolDef], name: &str) -> Option<&'a ToolDef> {
