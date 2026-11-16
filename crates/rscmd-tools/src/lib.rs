@@ -61,6 +61,8 @@ mod tests {
         assert!(names.contains(&"env"));
         #[cfg(feature = "system")]
         assert!(names.contains(&"archive"));
+        #[cfg(feature = "system")]
+        assert!(names.contains(&"reshack"));
         #[cfg(feature = "net")]
         assert!(names.contains(&"urlcheck"));
         assert!(!names.is_empty());

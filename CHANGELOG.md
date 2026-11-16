@@ -143,6 +143,15 @@
   `.inf`/`.nan`，统一返回 `PARSE_FAILED`（field 为 `path`）并带 hint。
   复用 T14 引入的 `serde_norway`，无新增依赖；实测 release 二进制由 7,289,856 字节增至
   7,490,048 字节，+200,192 字节 ≈ +0.19 MiB。
+- 新增工具 `reshack`（system 域，别名 `reshacktool`），迁移 fcmd 的 PE 资源查看与改写能力，
+  子命令 `list` / `extract` / `replace` / `export-all`：`list` 输出 PE 头信息与资源清单；
+  `extract` 导出单个资源（Icon/Bitmap 自动补 ICO/BMP 文件头，其余原样）；`export-all`
+  按 `<类型>/<名称>_<语言><扩展名>` 写入目录；`replace` 只能原位覆盖、不得扩容，
+  小于原大小时零填充并回写资源数据项的 `Size`，写入前自动备份 `<文件名>.backup`
+  （已存在则递增编号），落盘走「临时文件 + rename」，失败时原文件保持完整。
+  `extract` / `replace` / `export-all` 写文件需 `--confirm`，`--dry-run` 只返回计划；
+  命名资源（字符串 ID）与 fcmd 一致跳过。PE 解析与写回为手写实现，未引入新依赖。
+  `ERROR_CODE_KINDS` 登记 `RESOURCE_NOT_FOUND`（not_found，退出码 4）。
 - `ERROR_CODE_KINDS` 登记 `PARSE_FAILED`（invalid_input，退出码 3）：输入文件语法非法，
   或源格式中存在目标格式无法表示的取值（TOML `inf`/`nan`、YAML 非字符串键与重复键等）。
 

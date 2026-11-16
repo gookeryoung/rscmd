@@ -32,6 +32,8 @@ def test_tools_contains_p0_tools() -> None:
         "env",
         "toml",
         "yaml",
+        "archive",
+        "reshack",
     } <= names
 
 

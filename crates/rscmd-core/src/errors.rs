@@ -21,6 +21,7 @@ pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
     ("CONFIRM_REQUIRED", ErrorKind::Usage),
     // 目标不存在
     ("TOOL_NOT_FOUND", ErrorKind::NotFound),
+    ("RESOURCE_NOT_FOUND", ErrorKind::NotFound),
     // 参数值不合法
     ("INVALID_ARGS", ErrorKind::InvalidInput),
     ("INVALID_MODE", ErrorKind::InvalidInput),

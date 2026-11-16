@@ -20,5 +20,6 @@
 | `filedate` | `filedatetool` | 读取或写入文件修改时间（写需 --confirm，时间按 UTC 渲染） | `write` | `structured` |
 | `filesearch` | `filesearchtool` | 按文件名 glob 与内容子串检索文件，支持 --limit 截断 | `read` | `structured` |
 | `path` | `pathtool` | 路径规范化、拼接、相对路径与绝对路径判定 | `none` | `structured` |
+| `reshack` | `reshacktool` | 查看/导出/原位替换 Windows PE 资源（写需 --confirm，替换前自动备份） | `write` | `structured` |
 | `which` | `whichtool` | 在 PATH 中查找可执行文件，返回绝对路径或 null | `read` | `structured` |
 | `urlcheck` | `urlchecktool` | 探测 URL 的 HTTP 状态码、重定向链与耗时（HEAD/GET） | `network` | `structured` |

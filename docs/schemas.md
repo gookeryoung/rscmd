@@ -138,6 +138,19 @@
 | `parts` | array | `[]` | - | join 的路径片段 |
 | `path` | — | `null` | - | 待处理的路径（normalize/relative/is-abs） |
 
+## ReshackInput
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `file` | string | `—` | ✅ | PE 文件路径（exe/dll/sys 等） |
+| `input` | — | `null` | - | 新资源数据文件（replace 必填） |
+| `language` | integer | `0` | - | 语言 ID，默认 0 |
+| `name_id` | — | `null` | - | 资源名称 ID（extract / replace 必填） |
+| `op` | string | `—` | ✅ | 操作：list / extract / replace / export-all |
+| `output` | — | `null` | - | 输出文件路径（extract）；缺省为当前目录下的默认文件名 |
+| `output_dir` | — | `null` | - | 输出目录（export-all）；缺省为 PE 文件同目录下的 `<文件名>_resources` |
+| `type_id` | — | `null` | - | 资源类型 ID（extract / replace 必填，如 3=Icon、16=Version、24=Manifest） |
+
 ## WhichArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

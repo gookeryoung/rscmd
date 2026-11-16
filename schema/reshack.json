@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReshackInput",
+  "type": "object",
+  "properties": {
+    "file": {
+      "description": "PE 文件路径（exe/dll/sys 等）",
+      "type": "string"
+    },
+    "input": {
+      "description": "新资源数据文件（replace 必填）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "language": {
+      "description": "语言 ID，默认 0",
+      "type": "integer",
+      "format": "uint32",
+      "default": 0,
+      "minimum": 0
+    },
+    "name_id": {
+      "description": "资源名称 ID（extract / replace 必填）",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "default": null,
+      "minimum": 0
+    },
+    "op": {
+      "description": "操作：list / extract / replace / export-all",
+      "type": "string"
+    },
+    "output": {
+      "description": "输出文件路径（extract）；缺省为当前目录下的默认文件名",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "output_dir": {
+      "description": "输出目录（export-all）；缺省为 PE 文件同目录下的 `<文件名>_resources`",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "type_id": {
+      "description": "资源类型 ID（extract / replace 必填，如 3=Icon、16=Version、24=Manifest）",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint32",
+      "default": null,
+      "minimum": 0
+    }
+  },
+  "required": [
+    "op",
+    "file"
+  ]
+}

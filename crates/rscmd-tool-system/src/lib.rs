@@ -5,6 +5,7 @@ pub mod env;
 pub mod filedate;
 pub mod filesearch;
 pub mod path;
+pub mod reshack;
 pub mod which;
 
 use std::sync::OnceLock;
@@ -20,6 +21,7 @@ pub fn tools() -> &'static [ToolDef] {
             filedate::def(),
             filesearch::def(),
             path::def(),
+            reshack::def(),
             which::def(),
         ]
     })
@@ -31,7 +33,7 @@ mod tests {
     fn exposes_every_domain_tool_once() {
         let first = super::tools();
         let second = super::tools();
-        assert_eq!(first.len(), 6);
+        assert_eq!(first.len(), 7);
         assert!(std::ptr::eq(first, second), "应复用同一份缓存");
     }
 }
