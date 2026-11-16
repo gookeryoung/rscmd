@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ArchiveArgs",
+  "type": "object",
+  "properties": {
+    "directory": {
+      "description": "要打包的目录",
+      "type": "string"
+    },
+    "exclude": {
+      "description": "排除匹配的 glob（相对 DIR，可重复）",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "include": {
+      "description": "只打包匹配的 glob（相对 DIR，可重复；`*`/`?` 不跨目录，`**` 跨目录）",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "output": {
+      "description": "输出 zip 路径（必填，不猜默认值）",
+      "type": "string"
+    }
+  },
+  "required": [
+    "directory",
+    "output",
+    "include",
+    "exclude"
+  ]
+}

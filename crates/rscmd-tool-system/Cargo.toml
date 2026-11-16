@@ -14,6 +14,12 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 schemars = { workspace = true }
 time = { workspace = true }
+zip = { workspace = true }
+flate2 = { workspace = true }
+
+[package.metadata.cargo-machete]
+# flate2 不直接被调用：它只用于给 zip 选定纯 Rust 的压缩后端（rust_backend）。
+ignored = ["flate2"]
 
 [dev-dependencies]
 serde_json = { workspace = true }

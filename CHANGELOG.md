@@ -119,6 +119,15 @@
   `{count, case_insensitive, vars:[{name,value}], non_utf8}`。Windows 下变量名大小写不敏感
   （精确与前缀匹配均按 ASCII 不敏感比较），Unix 保持敏感；非 UTF-8 名称/值用 U+FFFD 替换
   并在 `non_utf8` 中列出，不报错。未引入第三方依赖。
+- 新增工具 `archive`（system 域，别名 `archivetool`）：把目录打包成 zip，不加密、不删除源文件。
+  `-o/--output` 必填，写文件需 `--confirm`，`--dry-run` 免确认并返回计划清单（受全局
+  `--limit` 限制，超出时 `truncated=true`）；`--include`/`--exclude` 按相对路径 glob 过滤。
+  输出 `{directory, output, file_count, total_bytes, dry_run}`，dry-run 额外含 `files`。
+  条目按相对路径排序、路径统一 `/`、时间固定为 zip 默认值，同一输入重复打包字节一致；
+  符号链接跳过；输出位于源目录内时自动排除。依赖新增 `zip` v3（`default-features = false`，
+  仅 `deflate-flate2` + flate2 `rust_backend`，其余压缩与加密全部关闭）。该工具只有 argv 入口
+  （`python=argv_only`，无 JSON 调用入口，但保留参数 schema 供文档）：写操作需要 `--confirm`，
+  而 JSON 调用通道没有 confirm/dry-run 参数。
 
 ### 变更
 

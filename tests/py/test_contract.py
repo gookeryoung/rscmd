@@ -61,6 +61,21 @@ def test_invoke_env_reads_path() -> None:
     assert out["vars"][0]["name"].lower() == "path"
 
 
+def test_run_argv_archive_dry_run(tmp_path: Path) -> None:
+    source = tmp_path / "src"
+    source.mkdir()
+    (source / "a.txt").write_text("a", encoding="utf-8")
+    output = tmp_path / "out.zip"
+    envelope = rscmd.run_argv(
+        ["archive", str(source), "-o", str(output), "--dry-run"]
+    )
+    assert envelope["ok"] is True
+    assert envelope["data"]["file_count"] == 1
+    assert envelope["data"]["dry_run"] is True
+    assert envelope["data"]["files"] == ["a.txt"]
+    assert not output.exists()
+
+
 def test_invoke_csv(tmp_path: Path) -> None:
     path = tmp_path / "data.csv"
     path.write_text("a,b\n1,2\n", encoding="utf-8")

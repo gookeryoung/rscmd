@@ -79,6 +79,15 @@
 | `mode` | string | `"base64"` | - | 编解码方式：base64/hex/url |
 | `text` | string | `—` | ✅ | 待编码或解码的文本 |
 
+## ArchiveArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `directory` | string | `—` | ✅ | 要打包的目录 |
+| `exclude` | array | `—` | ✅ | 排除匹配的 glob（相对 DIR，可重复） |
+| `include` | array | `—` | ✅ | 只打包匹配的 glob（相对 DIR，可重复；`*`/`?` 不跨目录，`**` 跨目录） |
+| `output` | string | `—` | ✅ | 输出 zip 路径（必填，不猜默认值） |
+
 ## EnvArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

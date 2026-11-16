@@ -161,6 +161,38 @@ fn filedate_write_without_confirm_is_rejected() {
 }
 
 #[test]
+fn archive_writes_zip_with_relative_entries() {
+    let dir = temp_dir().unwrap();
+    std::fs::create_dir_all(dir.path().join("sub")).unwrap();
+    std::fs::write(dir.path().join("a.txt"), "aa").unwrap();
+    std::fs::write(dir.path().join("sub/b.txt"), "b").unwrap();
+    let output = dir.path().join("out.zip");
+    let def = rscmd_tool_system::archive::def();
+    let matches = (def.build)()
+        .try_get_matches_from([
+            "archive",
+            &dir.path().to_string_lossy(),
+            "-o",
+            &output.to_string_lossy(),
+        ])
+        .expect("参数应可解析");
+    let mut ctx = ToolCtx {
+        confirm: true,
+        ..ToolCtx::default()
+    };
+    let out = (def.run)(&mut ctx, &matches).unwrap();
+    assert_eq!(out["file_count"], 2);
+    assert_eq!(out["total_bytes"], 3);
+    assert_eq!(out["dry_run"], json!(false));
+
+    let file = std::fs::File::open(&output).unwrap();
+    let mut archive = zip::ZipArchive::new(file).unwrap();
+    assert_eq!(archive.len(), 2);
+    assert_eq!(archive.by_index(0).unwrap().name(), "a.txt");
+    assert_eq!(archive.by_index(1).unwrap().name(), "sub/b.txt");
+}
+
+#[test]
 fn env_lists_filters_and_never_returns_zero_for_path() {
     let def = rscmd_tool_system::env::def();
     let run = def.run_json.expect("env 应暴露 JSON 入口");

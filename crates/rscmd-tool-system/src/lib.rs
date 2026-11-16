@@ -1,5 +1,6 @@
 //! 系统域工具。
 
+pub mod archive;
 pub mod env;
 pub mod filedate;
 pub mod filesearch;
@@ -14,6 +15,7 @@ pub fn tools() -> &'static [ToolDef] {
     static TOOLS: OnceLock<Vec<ToolDef>> = OnceLock::new();
     TOOLS.get_or_init(|| {
         vec![
+            archive::def(),
             env::def(),
             filedate::def(),
             filesearch::def(),
@@ -29,7 +31,7 @@ mod tests {
     fn exposes_every_domain_tool_once() {
         let first = super::tools();
         let second = super::tools();
-        assert_eq!(first.len(), 5);
+        assert_eq!(first.len(), 6);
         assert!(std::ptr::eq(first, second), "应复用同一份缓存");
     }
 }

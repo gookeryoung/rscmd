@@ -28,6 +28,7 @@
 | `rscmd timestamp(timestamptool)` | Unix 秒与 RFC3339 互转，支持固定偏移时区与日期加减 |
 | `rscmd hash(hashtool)` | 计算文本或文件的 SHA-256（hex） |
 | `rscmd codec(codetool)` | 文本编解码：base64 / hex / URL |
+| `rscmd archive(archivetool)` | 把目录打包成 zip（不加密，写需 --confirm，--dry-run 列清单） |
 | `rscmd env(envtool)` | 只读查询环境变量，支持按名字与前缀过滤 |
 | `rscmd filedate(filedatetool)` | 读取或写入文件修改时间（写需 --confirm，时间按 UTC 渲染） |
 | `rscmd filesearch(filesearchtool)` | 按文件名 glob 与内容子串检索文件，支持 --limit 截断 |
