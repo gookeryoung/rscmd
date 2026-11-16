@@ -72,6 +72,14 @@
 | `file` | string | `—` | ✅ | 待读取的 TOML 文件（UTF-8，可带 BOM） |
 | `to` | — | `null` | - | 输出格式：json（默认）或 yaml |
 
+## YamlArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `check` | boolean | `false` | - | 只校验语法，不输出转换结果 |
+| `file` | string | `—` | ✅ | 待读取的 YAML 文件（UTF-8，可带 BOM） |
+| `to` | — | `null` | - | 输出格式：json（默认）或 toml |
+
 ## HashArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

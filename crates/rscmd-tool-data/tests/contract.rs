@@ -142,3 +142,45 @@ fn toml_parse_failure_is_reported_with_path() {
     assert_eq!(err.exit_code(), 3);
     assert_eq!(err.field.as_deref(), Some("path"));
 }
+
+#[test]
+fn yaml_converts_file_to_json_and_toml() {
+    let dir = rscmd_runtime::fs::temp_dir().unwrap();
+    let path = dir.path().join("sample.yaml");
+    std::fs::write(&path, "title: demo\ndb:\n  port: 5432\n").unwrap();
+    let display = path.to_string_lossy().into_owned();
+    let def = rscmd_tool_data::yaml::def();
+    let run = def.run_json.expect("yaml 应暴露 JSON 入口");
+
+    let json_out = run(&mut ToolCtx::default(), &json!({"file": display})).unwrap();
+    assert_eq!(json_out["to"], "json");
+    let parsed: serde_json::Value =
+        serde_json::from_str(json_out["text"].as_str().unwrap()).unwrap();
+    assert_eq!(parsed["db"]["port"], 5432);
+
+    let toml_out = run(
+        &mut ToolCtx::default(),
+        &json!({"file": display, "to": "toml"}),
+    )
+    .unwrap();
+    let text = toml_out["text"].as_str().unwrap();
+    assert!(text.contains("title = \"demo\""), "{text}");
+    assert!(text.contains("port = 5432"), "{text}");
+}
+
+#[test]
+fn yaml_duplicate_keys_are_parse_failed() {
+    let dir = rscmd_runtime::fs::temp_dir().unwrap();
+    let path = dir.path().join("dup.yaml");
+    std::fs::write(&path, "a: 1\na: 2\n").unwrap();
+    let def = rscmd_tool_data::yaml::def();
+    let run = def.run_json.expect("yaml 应暴露 JSON 入口");
+    let err = run(
+        &mut ToolCtx::default(),
+        &json!({"file": path.to_string_lossy()}),
+    )
+    .unwrap_err();
+    assert_eq!(err.code, "PARSE_FAILED");
+    assert_eq!(err.exit_code(), 3);
+    assert_eq!(err.field.as_deref(), Some("path"));
+}

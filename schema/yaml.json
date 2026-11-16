@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "YamlArgs",
+  "type": "object",
+  "properties": {
+    "check": {
+      "description": "只校验语法，不输出转换结果",
+      "type": "boolean",
+      "default": false
+    },
+    "file": {
+      "description": "待读取的 YAML 文件（UTF-8，可带 BOM）",
+      "type": "string"
+    },
+    "to": {
+      "description": "输出格式：json（默认）或 toml",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "file"
+  ]
+}

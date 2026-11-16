@@ -5,6 +5,7 @@ pub mod json_fmt;
 pub mod stat;
 pub mod timestamp;
 pub mod toml;
+pub mod yaml;
 
 use std::sync::OnceLock;
 
@@ -19,6 +20,7 @@ pub fn tools() -> &'static [ToolDef] {
             stat::def(),
             timestamp::def(),
             toml::def(),
+            yaml::def(),
         ]
     })
 }
@@ -27,11 +29,12 @@ pub fn tools() -> &'static [ToolDef] {
 mod tests {
     #[test]
     fn exposes_domain_tools() {
-        assert_eq!(super::tools().len(), 5);
+        assert_eq!(super::tools().len(), 6);
         assert_eq!(super::tools()[0].meta.name, "csv");
         assert_eq!(super::tools()[1].meta.name, "json_fmt");
         assert_eq!(super::tools()[2].meta.name, "stat");
         assert_eq!(super::tools()[3].meta.name, "timestamp");
         assert_eq!(super::tools()[4].meta.name, "toml");
+        assert_eq!(super::tools()[5].meta.name, "yaml");
     }
 }

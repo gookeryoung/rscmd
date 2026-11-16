@@ -40,6 +40,8 @@ mod tests {
         #[cfg(feature = "data")]
         assert!(names.contains(&"toml"));
         #[cfg(feature = "data")]
+        assert!(names.contains(&"yaml"));
+        #[cfg(feature = "data")]
         assert!(names.contains(&"csv"));
         #[cfg(feature = "data")]
         assert!(names.contains(&"stat"));

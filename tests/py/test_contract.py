@@ -31,6 +31,7 @@ def test_tools_contains_p0_tools() -> None:
         "filedate",
         "env",
         "toml",
+        "yaml",
     } <= names
 
 
@@ -83,6 +84,14 @@ def test_invoke_toml_converts(tmp_path: Path) -> None:
     out = rscmd.invoke("toml", {"file": str(path)})
     assert out["to"] == "json"
     assert '"title": "demo"' in out["text"]
+
+
+def test_invoke_yaml_converts(tmp_path: Path) -> None:
+    path = tmp_path / "sample.yaml"
+    path.write_text("title: demo\n", encoding="utf-8")
+    out = rscmd.invoke("yaml", {"file": str(path), "to": "toml"})
+    assert out["to"] == "toml"
+    assert 'title = "demo"' in out["text"]
 
 
 def test_invoke_csv(tmp_path: Path) -> None:

@@ -135,6 +135,13 @@
   语法错误均返回 `PARSE_FAILED`（field 为 `path`）并带 hint。
   依赖新增 `toml` v0.9 与 `serde_norway` v0.9（YAML 渲染，后续 `yaml` 工具复用；实测 release
   二进制由 6,998,528 字节增至 7,289,856 字节，+291,328 字节 ≈ +0.28 MiB）。
+- 新增工具 `yaml`（data 域，别名 `yamtool`）：校验 YAML 并转换为 JSON（默认）或 TOML，
+  输出 `{path, to, text}`；`--check` 只校验语法、输出 `{path, ok: true}`（与 `--to` 互斥）。
+  输入按 UTF-8 读取并去掉可选 BOM，非 UTF-8 返回 `INVALID_ENCODING`；非字符串键、重复键、
+  带标签值，以及 TOML 无法表示的 `null`、非表顶层、超出 64 位有符号范围的整数与
+  `.inf`/`.nan`，统一返回 `PARSE_FAILED`（field 为 `path`）并带 hint。
+  复用 T14 引入的 `serde_norway`，无新增依赖；实测 release 二进制由 7,289,856 字节增至
+  7,490,048 字节，+200,192 字节 ≈ +0.19 MiB。
 - `ERROR_CODE_KINDS` 登记 `PARSE_FAILED`（invalid_input，退出码 3）：输入文件语法非法，
   或源格式中存在目标格式无法表示的取值（TOML `inf`/`nan`、YAML 非字符串键与重复键等）。
 
