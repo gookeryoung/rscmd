@@ -424,7 +424,7 @@ fn docs_check(write: bool) -> Result<()> {
         let expected = gen();
         let actual = fs::read_to_string(&path)
             .map_err(|_| format!("缺少 {}，请运行 `cargo xtask gen-docs`", path.display()))?;
-        if actual != expected {
+        if normalize_newlines(&actual) != expected {
             eprintln!("{} 已过期，请运行 `cargo xtask gen-docs`", path.display());
             all_ok = false;
         }
@@ -514,13 +514,19 @@ fn schema_check(write: bool) -> Result<()> {
 fn verify_generated(path: &Path, expected: &str) -> Result<()> {
     let actual = fs::read_to_string(path)
         .map_err(|_| format!("缺少 {}，请运行 `cargo xtask gen-schema`", path.display()))?;
-    if actual != expected {
+    if normalize_newlines(&actual) != expected {
         return Err(format!(
             "{} 已过期，请运行 `cargo xtask gen-schema`",
             path.display()
         ));
     }
     Ok(())
+}
+
+/// 生成物比较前归一化换行：Windows 的 `core.autocrlf` 会把检出内容变成 CRLF，
+/// 而生成器统一写 LF，不归一化会在 Windows CI 上误报「已过期」。
+fn normalize_newlines(text: &str) -> String {
+    text.replace("\r\n", "\n")
 }
 
 fn check_fast() -> Result<()> {
@@ -1093,7 +1099,13 @@ pub fn release_preflight() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::wheel_version;
+    use super::{normalize_newlines, wheel_version};
+
+    #[test]
+    fn normalizes_crlf_before_compare() {
+        assert_eq!(normalize_newlines("a\r\nb\r\n"), "a\nb\n");
+        assert_eq!(normalize_newlines("a\nb"), "a\nb");
+    }
 
     #[test]
     fn parses_wheel_version() {
