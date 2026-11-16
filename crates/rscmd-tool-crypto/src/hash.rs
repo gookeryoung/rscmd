@@ -189,6 +189,8 @@ mod tests {
         let tool = def();
         assert_eq!(tool.meta.name, "hash");
         assert!(tool.run_json.is_some());
-        assert!(tool.schema.is_some());
+        let schema = (tool.schema.expect("应提供 schema"))();
+        assert!(schema.contains("\"text\""), "{schema}");
+        assert!(schema.contains("\"file\""), "{schema}");
     }
 }

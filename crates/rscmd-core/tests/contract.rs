@@ -3,6 +3,7 @@
 use clap::{ArgMatches, Command};
 use serde_json::{json, Value};
 
+use rscmd_core::builtins::{DoctorProbe, NativeFreshness};
 use rscmd_core::{
     command_for, dispatch, render, ErrorKind, Outcome, PythonExposure, Registry, RscmdError,
     SideEffects, ToolCtx, ToolDef, ToolMeta,
@@ -631,13 +632,21 @@ fn dispatch_respects_raw_json_on_parse_error() {
 
 #[test]
 fn doctor_data_reports_checks_and_environment() {
-    let data = rscmd_core::builtins::doctor_data(&TOOLS, Registry::new(&TOOLS).validate());
+    let data = rscmd_core::builtins::doctor_data_with(
+        &TOOLS,
+        Registry::new(&TOOLS).validate(),
+        &DoctorProbe {
+            native: NativeFreshness::Fresh,
+            code_page: Some(65001),
+            cwd: Some(".".into()),
+        },
+    );
     assert_eq!(data["ok"], true);
-    assert_eq!(data["total"], 3);
-    assert_eq!(data["passed"], 3);
+    assert_eq!(data["total"], 5);
+    assert_eq!(data["passed"], 5);
     assert_eq!(data["failed"], 0);
     assert_eq!(data["tool_count"], 2);
-    assert_eq!(data["checks"].as_array().unwrap().len(), 3);
+    assert_eq!(data["checks"].as_array().unwrap().len(), 5);
     assert!(data["checks"][0]["detail"]
         .as_str()
         .unwrap()
@@ -646,7 +655,15 @@ fn doctor_data_reports_checks_and_environment() {
 
 #[test]
 fn doctor_flags_broken_registry_and_empty_tools() {
-    let data = rscmd_core::builtins::doctor_data(&TOOLS, Err(vec!["别名冲突".to_string()]));
+    let data = rscmd_core::builtins::doctor_data_with(
+        &TOOLS,
+        Err(vec!["别名冲突".to_string()]),
+        &DoctorProbe {
+            native: NativeFreshness::Fresh,
+            code_page: None,
+            cwd: Some(".".into()),
+        },
+    );
     assert_eq!(data["ok"], false);
     assert_eq!(data["failed"], 1);
     assert_eq!(data["checks"][0]["fix"], "别名冲突");
@@ -663,7 +680,15 @@ fn doctor_flags_broken_registry_and_empty_tools() {
     };
     assert_eq!(out.exit_code(), 5);
 
-    let empty = rscmd_core::builtins::doctor_data(&[], Ok(()));
+    let empty = rscmd_core::builtins::doctor_data_with(
+        &[],
+        Ok(()),
+        &DoctorProbe {
+            native: NativeFreshness::Fresh,
+            code_page: None,
+            cwd: Some(".".into()),
+        },
+    );
     assert_eq!(empty["ok"], false);
     assert_eq!(empty["checks"][1]["item"], "工具数量");
     assert_eq!(empty["checks"][1]["ok"], false);
@@ -676,9 +701,17 @@ fn render_builtin_human_forms() {
     assert_eq!(stdout, format!("rscmd {}\n", env!("CARGO_PKG_VERSION")));
     assert!(stderr.is_empty());
 
-    let data = rscmd_core::builtins::doctor_data(&TOOLS, Registry::new(&TOOLS).validate());
+    let data = rscmd_core::builtins::doctor_data_with(
+        &TOOLS,
+        Registry::new(&TOOLS).validate(),
+        &DoctorProbe {
+            native: NativeFreshness::Fresh,
+            code_page: None,
+            cwd: Some(".".into()),
+        },
+    );
     let (stdout, stderr) = render(&outcome("doctor", Ok(data), false));
-    assert!(stdout.contains("诊断结果: 3/3 全部通过"), "{stdout}");
+    assert!(stdout.contains("诊断结果: 5/5 全部通过"), "{stdout}");
     assert!(stdout.contains("[OK  ]"), "{stdout}");
     assert!(stderr.is_empty());
 }
@@ -696,7 +729,15 @@ fn doctor_text_handles_sparse_data() {
 
 #[test]
 fn doctor_failure_is_check_failed_not_runtime_error() {
-    let bad = rscmd_core::builtins::doctor_data(&TOOLS, Err(vec!["x".to_string()]));
+    let bad = rscmd_core::builtins::doctor_data_with(
+        &TOOLS,
+        Err(vec!["x".to_string()]),
+        &DoctorProbe {
+            native: NativeFreshness::Fresh,
+            code_page: None,
+            cwd: Some(".".into()),
+        },
+    );
 
     let (stdout, stderr) = render(&outcome("doctor", Ok(bad.clone()), false));
     assert!(stdout.contains("[FAIL]"), "{stdout}");
