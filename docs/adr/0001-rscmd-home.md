@@ -1,6 +1,6 @@
 # ADR 0001：配置、状态与缓存目录（`RSCMD_HOME`）
 
-- 状态：提议（待批准后实现）
+- 状态：已批准（实现中）
 - 日期：2026-11-16
 - 关联：`docs/infrastructure-plan.md` §2.5、P2-3（下载缓存）、P2-5（目录 resolver）
 
@@ -11,7 +11,7 @@
 发明路径、各自处理写入失败。P2-3 的网络层已具备重试与统一错误码，下载缓存是
 第一个候选消费者；P2-5 的 resolver 尚无代码。
 
-本 ADR 只定义目录与优先级、失败语义和缓存文件格式，不新增工具行为。
+本 ADR 定义目录与优先级、失效与容量策略、失败语义和缓存文件格式，不新增工具行为。
 
 ## 决策
 
@@ -48,34 +48,48 @@
 - 键：规范化 URL（去 fragment、scheme/host 小写）的 SHA-256，十六进制；
 - 每条缓存两项：
   - `<digest>.bin`：原始响应体；
-  - `<digest>.json`：`{ "schema": "rscmd-cache/1", "url", "size", "sha256", "etag", "fetched_at" }`；
-- 写入使用临时文件 + 同名 rename，避免半写文件被当成命中；
-- 命中判定：`.bin` 与 `.json` 均存在、`size` 一致；工具声明期望校验和时再比对 `sha256`；
-  任一项不符视为未命中并重新下载；
+  - `<digest>.json`：`{ "schema": "rscmd-cache/1", "url", "size", "sha256", "fetched_at" }`；
+- 写入使用临时文件 + 同名 rename，避免半写文件被当成命中；临时文件由
+  `fs::atomic_write` 生成，命名为 `.rscmd-tmp-<hex>` 后缀；
+- 命中判定：`.bin` 与 `.json` 均存在、`size` 一致、`sha256` 与内容一致；
+  任一项不符视为未命中并删除该条目后重新下载；
+- **失效**：默认 TTL 7 天（按 `fetched_at` 判定，读取时惰性删除过期条目）；
+  工具可用 `CachePolicy` 覆盖；
+- **容量边界**：默认总大小 256 MiB、条目数 1024；每次写入后按 `fetched_at` 从旧到新
+  淘汰，直到同时满足两个上限；临时文件（`.rscmd-tmp-*`）与孤立 `.bin` 一并清理；
+- 未命中、损坏、过期、淘汰都只是缓存行为，不改变工具结果；
 - 默认不启用：只有显式选择缓存的工具才读写 `cache/downloads/`，现有工具行为不变；
-- 不做自动淘汰；本 ADR 不引入清理命令，磁盘占用由用户手动管理（后续需要时另立 ADR）。
+- 本 ADR 不引入独立的 `rscmd cache` 清理命令，容量策略在写入路径内自动执行。
 
-### 4. 失败语义与错误码
+### 4. 失败语义
 
-新增并登记到 `ERROR_CODE_KINDS`：
+- **下载缓存静默降级**：根目录无法解析、目录无法创建或不可写、rename/写文件失败时，
+  缓存层视为「未启用」，直接走网络下载；不向工具或调用方报错，也不写 stderr。
+- 缓存内容损坏（元数据无法解析、大小或哈希不符）按未命中处理并删除条目，不报错。
+- `state/` 与 `logs/` 未来写入失败才映射为明确错误码（`STATE_DIR_UNAVAILABLE` /
+  `STATE_WRITE_FAILED`，登记到 `ERROR_CODE_KINDS`）；当前没有消费者，不提前引入。
+- resolver 仍返回 `Result`，便于未来 state/logs 消费者区分「未配置」与「不可写」。
 
-| 错误码 | kind | 场景 |
-| --- | --- | --- |
-| `RSCMD_HOME_UNAVAILABLE` | runtime | 无法确定根目录（无 `RSCMD_HOME` 且无平台目录与主目录） |
-| `STATE_DIR_UNAVAILABLE` | runtime | 目录已确定但无法创建或不可写 |
-| `STATE_WRITE_FAILED` | runtime | 创建目录/写文件/rename 失败 |
-| `CACHE_CORRUPT` | runtime | 缓存元数据无法解析或与内容不一致，且调用方要求严格校验 |
+### 5. resolver 与缓存 API
 
-失败不静默降级到内存缓存：调用方要么拿到明确错误，要么显式选择「不使用缓存」。
+- `DirEnv { vars, platform, home_dir }`：环境变量、平台、主目录全部可注入；
+  `DirEnv::from_process()` 读取真实环境。
+- `Dirs::resolve(&DirEnv) -> Result<Dirs, DirError>`；`cache_dir()` / `state_dir()` /
+  `logs_dir()` 只拼接路径，不创建目录。
+- `DownloadCache::open(&Dirs, CachePolicy)`：目录不可创建时返回 `None`（静默降级）。
+- `DownloadCache::with_clock(root, policy, clock)`：时钟可注入，测试过期与淘汰。
+- `net::download_with_cache(url, timeout, RetryPolicy, Option<&DownloadCache>)`：
+  命中直接返回；未命中走 `download_with` 并写回；`None` 或写入失败都按无缓存处理。
+- 写入前 `create_dir_all`；创建失败直接放弃本次缓存写入。
+- resolver 与缓存放在 `rscmd-runtime`，不进入 `rscmd-core`，避免核心层依赖文件系统布局。
 
-### 5. resolver API（实现时）
+### 6. 跨平台差异
 
-- `home() -> Result<PathBuf, DirError>`
-- `cache_dir(kind) -> Result<PathBuf, DirError>`（`kind` 目前只有 `downloads`）
-- `state_dir() -> Result<PathBuf, DirError>`
-- `logs_dir() -> Result<PathBuf, DirError>`
-- 读取接口不创建目录；写路径由调用方显式调用 `ensure(path)` 或写入时自动创建。
-- resolver 放在 `rscmd-runtime`，不进入 `rscmd-core`，避免核心层依赖文件系统布局。
+- Windows：`%LOCALAPPDATA%\rscmd`；路径大小写不敏感，但缓存文件名统一用十六进制小写，
+  不依赖真实大小写；`rename` 不能覆盖已有目标，刷新缓存时先删除旧文件再 rename。
+- macOS：`~/Library/Application Support/rscmd`。
+- Linux/其他 Unix：`$XDG_DATA_HOME/rscmd`，缺省 `~/.local/share/rscmd`。
+- 任何平台都优先使用 `RSCMD_HOME`；空字符串视为未设置。
 
 ## 备选方案
 
@@ -89,11 +103,11 @@
 
 - 纯新增：不改变现有 JSON 契约、CLI 参数与发布物；
 - 第一个消费者是下载缓存（P2-3 剩余部分），启用需工具显式选择；
-- 目录不可用时返回明确错误码，不阻塞其它工具。
+- 缓存不可用时静默降级，不阻塞工具执行。
 
-## 待批准后实施的顺序
+## 实施顺序
 
-1. `rscmd-runtime` 目录 resolver + 单元测试（优先级、平台分支、不可写错误）；
-2. 错误码登记与 doctor 可选展示（仅当目录已存在时）；
-3. 下载缓存读写 + 命中/损坏/并发写测试，接入 `download_with` 的可选参数；
-4. CHANGELOG 与文档生成物同步。
+1. `rscmd-runtime` 目录 resolver + 单元测试（优先级、平台分支、空值/缺值）；
+2. 下载缓存读写、TTL 失效、容量淘汰、损坏清理 + 可注入时钟/策略的单测；
+3. `download_with_cache` 接入与端到端测试（命中不重复下载、不可写时降级）；
+4. CHANGELOG 与文档生成物同步；不新增错误码（缓存失败不上浮）。
