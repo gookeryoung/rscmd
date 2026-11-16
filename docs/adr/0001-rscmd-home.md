@@ -1,6 +1,6 @@
 # ADR 0001：配置、状态与缓存目录（`RSCMD_HOME`）
 
-- 状态：已批准（实现中）
+- 状态：已批准（已落地）
 - 日期：2026-11-16
 - 关联：`docs/infrastructure-plan.md` §2.5、P2-3（下载缓存）、P2-5（目录 resolver）
 
@@ -118,3 +118,21 @@
 3. `download_with_cache` 接入与端到端测试（命中不重复下载、不可写时降级）；
 4. 跨进程目录锁 `lock::DirLock` + 8 进程竞争集成测试，接入缓存写入路径；
 5. CHANGELOG 与文档生成物同步；缓存失败不上浮（仅锁的原语错误码供未来消费者使用）。
+
+## 落地状态
+
+五步均已实现并随 `main` 入库：
+
+- `home::Dirs::resolve` / `cache_dir` / `state_dir` / `logs_dir`（`crates/rscmd-runtime/src/home.rs`）；
+- `cache::DownloadCache`（TTL、容量淘汰、损坏清理，时钟可注入）；
+- `net::download_with_cache`（命中不重复下载，未启用或不可写时静默降级）；
+- `lock::DirLock`（`try_acquire` / `acquire`）并已接入缓存写入路径（500 ms 上限）；
+- `ERROR_CODE_KINDS` 已登记 `LOCK_BUSY` / `LOCK_TIMEOUT` / `LOCK_UNAVAILABLE`。
+
+## 交接
+
+- 下一步：当前没有工具默认启用缓存；出现真实下载缓存需求时，工具侧传
+  `Some(&DownloadCache)` 即可，不需要改 resolver。
+- 已知坑：Windows 上 `rename` 不覆盖已有目标，刷新缓存走「先删旧文件再 rename」；
+  进程被强杀会残留 `.lock`，调用方必须使用带超时的 `acquire`，不能依赖 `try_acquire` 死等。
+- `logs/` 目录仍只拼接不创建：`--log-file` 在基础设施计划里属「有明确需求再启动」，当前无消费者。

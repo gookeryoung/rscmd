@@ -35,6 +35,12 @@ pub enum NativeFreshness {
     Fresh,
 }
 
+/// 不参与 Python 扩展产物的 crate：构建脚本与纯 CLI 层。
+///
+/// 与 `cargo xtask py-fresh-check` 的口径一致：改这两个 crate 不需要重建 `_native`，
+/// 因此不能把它们算进「扩展是否过期」的源码集合。
+const EXTENSION_IRRELEVANT_CRATES: &[&str] = &["xtask", "rscmd-cli"];
+
 impl NativeFreshness {
     /// 依据「扩展 mtime」与「最新源码 mtime」给出结论。
     pub fn from_mtimes(native: Option<SystemTime>, newest_source: Option<SystemTime>) -> Self {
@@ -56,8 +62,14 @@ impl NativeFreshness {
         let Some(root) = find_source_root(starts) else {
             return Self::NotInSourceTree;
         };
-        let native = newest_mtime(&root.join("python").join("rscmd"), &is_native_artifact);
-        let source = newest_mtime(&root.join("crates"), &has_rust_extension);
+        let native = newest_mtime(
+            &root.join("python").join("rscmd"),
+            &is_native_artifact,
+            &|_| false,
+        );
+        let source = newest_mtime(&root.join("crates"), &has_rust_extension, &|name| {
+            EXTENSION_IRRELEVANT_CRATES.contains(&name)
+        });
         Self::from_mtimes(native, source)
     }
 }
@@ -264,7 +276,13 @@ fn find_source_root(starts: &[PathBuf]) -> Option<PathBuf> {
 }
 
 /// 递归找出目录下满足条件文件的最新修改时间；目录不存在或没有命中时返回 `None`。
-fn newest_mtime(dir: &Path, accept: &dyn Fn(&Path) -> bool) -> Option<SystemTime> {
+///
+/// `skip_dir` 命中目录名时整棵子树跳过，用于排除与扩展产物无关的 crate。
+fn newest_mtime(
+    dir: &Path,
+    accept: &dyn Fn(&Path) -> bool,
+    skip_dir: &dyn Fn(&str) -> bool,
+) -> Option<SystemTime> {
     if !dir.is_dir() {
         return None;
     }
@@ -277,7 +295,13 @@ fn newest_mtime(dir: &Path, accept: &dyn Fn(&Path) -> bool) -> Option<SystemTime
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() {
-                stack.push(path);
+                let name = path
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or("");
+                if !skip_dir(name) {
+                    stack.push(path);
+                }
                 continue;
             }
             if !accept(&path) {
@@ -607,16 +631,47 @@ mod tests {
             .set_modified(at(1_500_000_000))
             .unwrap();
 
-        let found = newest_mtime(&dir, &has_rust_extension).expect("应找到 .rs");
+        let found = newest_mtime(&dir, &has_rust_extension, &|_| false).expect("应找到 .rs");
         assert_eq!(found, at(1_500_000_000));
         assert!(found < at(2_000_000_000));
         assert!(
-            newest_mtime(&temp_dir("mtime-missing"), &has_rust_extension).is_none(),
+            newest_mtime(&temp_dir("mtime-missing"), &has_rust_extension, &|_| false).is_none(),
             "目录不存在时应返回 None"
         );
         assert!(is_native_artifact(Path::new("_native.cp311-win_amd64.pyd")));
         assert!(!is_native_artifact(Path::new("native.pyd")));
 
         std::fs::remove_dir_all(dir).ok();
+    }
+
+    #[test]
+    fn newest_mtime_skips_irrelevant_crates() {
+        let root = temp_dir("skip");
+        std::fs::create_dir_all(root.join("xtask")).unwrap();
+        std::fs::create_dir_all(root.join("tool")).unwrap();
+        let xtask_src = root.join("xtask").join("main.rs");
+        let tool_src = root.join("tool").join("lib.rs");
+        std::fs::write(&xtask_src, "x").unwrap();
+        std::fs::write(&tool_src, "x").unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&xtask_src)
+            .unwrap()
+            .set_modified(at(2_000_000_000))
+            .unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&tool_src)
+            .unwrap()
+            .set_modified(at(1_000_000_000))
+            .unwrap();
+
+        let found = newest_mtime(&root, &has_rust_extension, &|name| {
+            EXTENSION_IRRELEVANT_CRATES.contains(&name)
+        })
+        .expect("应找到 tool 下的 .rs");
+        assert_eq!(found, at(1_000_000_000), "xtask 应被跳过");
+
+        std::fs::remove_dir_all(root).ok();
     }
 }

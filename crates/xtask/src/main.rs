@@ -49,7 +49,7 @@ fn print_help() {
         "用法: cargo xtask <command>\n\
          \n\
          命令:\n\
-         \x20 registry-check  校验工具注册表、元数据与文件布局\n\
+         \x20 registry-check  校验工具注册表、元数据、文件布局与写入类工具的确认闸门\n\
          \x20 code-check      校验源码里用到的错误码都已在 ERROR_CODE_KINDS 登记\n\
          \x20 arch-check      校验 crate 依赖方向\n\
          \x20 adr-check       校验 ADR 编号/命名/索引登记/废弃状态\n\
@@ -220,6 +220,14 @@ fn registry_check() -> Result<()> {
             for name in meta_names(&text) {
                 source_names.insert(name);
             }
+            // 写入类工具必须走确认闸门（AGENTS.md 的安全边界，方案 D7）：
+            // 声明 `side_effects: Write` 却没有 `require_confirm` 的工具在 CI 前置失败。
+            if declares_write(&text) && !text.contains("require_confirm") {
+                return Err(format!(
+                    "{} 声明 `side_effects: SideEffects::Write`，但未调用 `ToolCtx::require_confirm` 做确认闸门",
+                    file.display()
+                ));
+            }
         }
     }
 
@@ -267,6 +275,30 @@ fn first_quoted(text: &str) -> Option<String> {
     let rest = &text[start + 1..];
     let end = rest.find('"')?;
     Some(rest[..end].to_string())
+}
+
+/// 工具 `META` 是否声明 `side_effects: SideEffects::Write`。
+///
+/// 只看 `pub static META` 结构体内那一行，避免把测试或其它位置的
+/// `SideEffects::Write` 误当成工具声明。
+fn declares_write(text: &str) -> bool {
+    let mut in_meta = false;
+    for line in text.lines() {
+        if line.contains("pub static META") {
+            in_meta = true;
+            continue;
+        }
+        if !in_meta {
+            continue;
+        }
+        if let Some(rest) = line.split("side_effects:").nth(1) {
+            return rest.trim_start().starts_with("SideEffects::Write");
+        }
+        if line.trim_start().starts_with("};") {
+            break;
+        }
+    }
+    false
 }
 
 fn arch_check() -> Result<()> {
@@ -1424,7 +1456,9 @@ pub fn release_preflight() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{changelog_has_version, coded_literals, normalize_newlines, wheel_version};
+    use super::{
+        changelog_has_version, coded_literals, declares_write, normalize_newlines, wheel_version,
+    };
 
     #[test]
     fn normalizes_crlf_before_compare() {
@@ -1488,5 +1522,21 @@ mod tests {
         let source = "coded(\"A\") ... coded(\"B\"); coded(\"C\n";
         let found = coded_literals(source);
         assert_eq!(found, vec![(1, "A".to_string()), (1, "B".to_string())]);
+    }
+
+    #[test]
+    fn detects_write_side_effects_only_inside_meta() {
+        let write = "pub static META: ToolMeta = ToolMeta {\n    name: \"x\",\n    side_effects: SideEffects::Write,\n};";
+        assert!(declares_write(write));
+
+        let read =
+            "pub static META: ToolMeta = ToolMeta {\n    side_effects: SideEffects::Read,\n};";
+        assert!(!declares_write(read));
+
+        // META 之外的 `SideEffects::Write`（例如测试断言）不应触发校验。
+        let outside =
+            "pub static META: ToolMeta = ToolMeta {\n    side_effects: SideEffects::None,\n};\n\
+                       #[test] fn t() { assert_eq!(x, SideEffects::Write); }";
+        assert!(!declares_write(outside));
     }
 }

@@ -162,6 +162,11 @@
   `registry::BUILTINS`，帮助由该表构造，`cargo xtask gen-docs` 新增 `docs/commands.md`。
 - 注册表校验的保留名范围扩展到内建命令短别名（`r`/`i`/`v`/`d`）：工具名或别名与内建命令撞车时
   `cargo xtask registry-check` 直接失败，避免把重复的 clap 子命令/别名留到运行期才暴露。
+- `cargo xtask registry-check` 新增确认闸门校验：工具 `META` 声明 `side_effects: SideEffects::Write`
+  却未调用 `ToolCtx::require_confirm` 时直接失败（既有 `archive` / `filedate` 已合规）。
+- `rscmd doctor` 的「Python 扩展」检查与 `py-fresh-check` 对齐口径：计算源码新鲜度时跳过
+  `crates/xtask` 与 `crates/rscmd-cli`（二者不是扩展输入）。此前修改这两个 crate 会让 `doctor`
+  误报扩展过期并以退出码 5 失败。
 - Python 侧加入类型检查：选 mypy（纯 Python 实现，CI 无需额外运行时），配置在 `pyproject.toml`
   的 `[tool.mypy]`（`strict`，覆盖 `python/rscmd` 与 `tests/py`）；新增 `python/rscmd/_native.pyi`
   声明原生边界签名，`_raise_native` 标注 `NoReturn`。`cargo xtask py-type-check` 已并入 `check`。
