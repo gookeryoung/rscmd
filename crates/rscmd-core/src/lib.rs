@@ -15,7 +15,7 @@ pub mod tool;
 pub use args::{global_schema, GlobalArgs};
 pub use ctx::ToolCtx;
 pub use dispatch::{dispatch, Outcome};
-pub use errors::{ErrorKind, RscmdError};
+pub use errors::{ErrorKind, RscmdError, ERROR_CODE_KINDS};
 pub use registry::Registry;
 pub use render::render;
 pub use tool::{

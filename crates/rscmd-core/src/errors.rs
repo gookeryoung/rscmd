@@ -13,6 +13,19 @@ pub enum ErrorKind {
     Interrupted,
 }
 
+/// 具体错误码 → 错误大类的中央登记表。新增错误码必须在此登记。
+pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
+    // 用法错误
+    ("USAGE", ErrorKind::Usage),
+    ("MISSING_TOOL", ErrorKind::Usage),
+    // 目标不存在
+    ("TOOL_NOT_FOUND", ErrorKind::NotFound),
+    // 参数值不合法
+    ("INVALID_ARGS", ErrorKind::InvalidInput),
+    ("INVALID_MODE", ErrorKind::InvalidInput),
+    ("INVALID_JSON", ErrorKind::InvalidInput),
+];
+
 impl ErrorKind {
     pub fn as_str(self) -> &'static str {
         match self {
@@ -23,6 +36,15 @@ impl ErrorKind {
             Self::CheckFailed => "check_failed",
             Self::Interrupted => "interrupted",
         }
+    }
+
+    /// 按登记表推导错误码对应的大类；未登记码回退 `InvalidInput`（与 fcmd 口径一致）。
+    pub fn for_code(code: &str) -> Self {
+        ERROR_CODE_KINDS
+            .iter()
+            .find(|(name, _)| *name == code)
+            .map(|(_, kind)| *kind)
+            .unwrap_or(Self::InvalidInput)
     }
 
     pub fn exit_code(self) -> i32 {
@@ -58,6 +80,13 @@ impl RscmdError {
             expected: None,
             hint: None,
         }
+    }
+
+    /// 由错误码推导 kind 与退出码，避免同一错误码在不同调用点给出不同 `kind`。
+    /// 未登记码回退 `InvalidInput`（退出码 3）。
+    pub fn coded(code: impl Into<String>, message: impl Into<String>) -> Self {
+        let code = code.into();
+        Self::new(ErrorKind::for_code(&code), code, message)
     }
 
     pub fn runtime(code: impl Into<String>, message: impl Into<String>) -> Self {
@@ -112,3 +141,38 @@ impl fmt::Display for RscmdError {
 }
 
 impl std::error::Error for RscmdError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registered_codes_map_to_their_kind() {
+        for (code, kind) in ERROR_CODE_KINDS {
+            assert_eq!(ErrorKind::for_code(code), *kind, "错误码 {code} 映射不一致");
+            let err = RscmdError::coded(*code, "m");
+            assert_eq!(err.kind, *kind);
+            assert_eq!(err.code, *code);
+            assert_eq!(err.exit_code(), kind.exit_code());
+        }
+    }
+
+    #[test]
+    fn registered_codes_are_unique() {
+        let mut seen = std::collections::BTreeSet::new();
+        for (code, _) in ERROR_CODE_KINDS {
+            assert!(seen.insert(*code), "错误码 {code} 重复登记");
+        }
+    }
+
+    #[test]
+    fn unregistered_code_falls_back_to_invalid_input() {
+        let err = RscmdError::coded("SOMETHING_NEW", "m");
+        assert_eq!(err.kind, ErrorKind::InvalidInput);
+        assert_eq!(err.exit_code(), 3);
+        assert_eq!(
+            ErrorKind::for_code("SOMETHING_NEW").as_str(),
+            "invalid_input"
+        );
+    }
+}

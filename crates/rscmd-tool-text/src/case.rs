@@ -59,7 +59,7 @@ fn parse_mode(raw: &str) -> Result<CaseMode, RscmdError> {
         "pascal" => Ok(CaseMode::Pascal),
         "kebab" => Ok(CaseMode::Kebab),
         other => Err(
-            RscmdError::invalid_input("INVALID_MODE", format!("未知命名风格: {other}"))
+            RscmdError::coded("INVALID_MODE", format!("未知命名风格: {other}"))
                 .with_field("mode")
                 .with_expected("snake/camel/pascal/kebab"),
         ),
@@ -77,9 +77,8 @@ pub fn run_cli(ctx: &mut ToolCtx, matches: &ArgMatches) -> Result<Value, RscmdEr
 }
 
 pub fn run_json(ctx: &mut ToolCtx, input: &Value) -> Result<Value, RscmdError> {
-    let args: CaseArgs = serde_json::from_value(input.clone()).map_err(|err| {
-        RscmdError::invalid_input("INVALID_ARGS", err.to_string()).with_field("args")
-    })?;
+    let args: CaseArgs = serde_json::from_value(input.clone())
+        .map_err(|err| RscmdError::coded("INVALID_ARGS", err.to_string()).with_field("args"))?;
     run(ctx, args)
 }
 

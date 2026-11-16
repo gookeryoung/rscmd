@@ -30,7 +30,7 @@ fn native_error(err: &RscmdError) -> PyErr {
 
 fn missing_tool(name: &str) -> PyErr {
     native_error(
-        &RscmdError::not_found("TOOL_NOT_FOUND", format!("未知工具: {name}"))
+        &RscmdError::coded("TOOL_NOT_FOUND", format!("未知工具: {name}"))
             .with_hint("使用 tools() 查看可用工具"),
     )
 }

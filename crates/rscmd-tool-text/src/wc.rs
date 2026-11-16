@@ -35,9 +35,8 @@ pub fn run_cli(ctx: &mut ToolCtx, matches: &ArgMatches) -> Result<Value, RscmdEr
 }
 
 pub fn run_json(ctx: &mut ToolCtx, input: &Value) -> Result<Value, RscmdError> {
-    let args: WcArgs = serde_json::from_value(input.clone()).map_err(|err| {
-        RscmdError::invalid_input("INVALID_ARGS", err.to_string()).with_field("args")
-    })?;
+    let args: WcArgs = serde_json::from_value(input.clone())
+        .map_err(|err| RscmdError::coded("INVALID_ARGS", err.to_string()).with_field("args"))?;
     run(ctx, args)
 }
 

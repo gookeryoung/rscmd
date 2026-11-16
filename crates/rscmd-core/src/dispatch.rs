@@ -66,7 +66,7 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
             }
             Outcome {
                 tool: String::new(),
-                result: Err(RscmdError::usage(
+                result: Err(RscmdError::coded(
                     "USAGE",
                     err.to_string().trim_end().to_string(),
                 )),
@@ -186,7 +186,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
         // rscmd run 不带工具名 → USAGE 错误
         return Outcome {
             tool: "run".to_string(),
-            result: Err(RscmdError::usage(
+            result: Err(RscmdError::coded(
                 "MISSING_TOOL",
                 "rscmd run 后需要一个工具名，例如 `rscmd run case --text hello`",
             )),
@@ -205,7 +205,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
             match find_tool(tools, wanted) {
                 Some(tool) => Ok(meta_json(tool)),
                 None => Err(
-                    RscmdError::not_found("TOOL_NOT_FOUND", format!("未知工具: {wanted}"))
+                    RscmdError::coded("TOOL_NOT_FOUND", format!("未知工具: {wanted}"))
                         .with_hint("使用 `rscmd tools` 查看可用工具"),
                 ),
             }
@@ -237,7 +237,7 @@ fn invoke_tool(
 ) -> Result<Value, RscmdError> {
     match find_tool(tools, name) {
         Some(tool) => (tool.run)(ctx, sub),
-        None => Err(RscmdError::not_found(
+        None => Err(RscmdError::coded(
             "TOOL_NOT_FOUND",
             format!("未知工具: {name}"),
         )),

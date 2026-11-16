@@ -39,16 +39,15 @@ pub fn run_cli(ctx: &mut ToolCtx, matches: &ArgMatches) -> Result<Value, RscmdEr
 }
 
 pub fn run_json(ctx: &mut ToolCtx, input: &Value) -> Result<Value, RscmdError> {
-    let args: JsonFmtArgs = serde_json::from_value(input.clone()).map_err(|err| {
-        RscmdError::invalid_input("INVALID_ARGS", err.to_string()).with_field("args")
-    })?;
+    let args: JsonFmtArgs = serde_json::from_value(input.clone())
+        .map_err(|err| RscmdError::coded("INVALID_ARGS", err.to_string()).with_field("args"))?;
     run(ctx, args)
 }
 
 fn run(_ctx: &mut ToolCtx, args: JsonFmtArgs) -> Result<Value, RscmdError> {
     match format_json(&args.json, args.minify) {
         Ok(rendered) => Ok(json!({ "json": rendered })),
-        Err(err) => Err(RscmdError::invalid_input("INVALID_JSON", err.message)
+        Err(err) => Err(RscmdError::coded("INVALID_JSON", err.message)
             .with_field("json")
             .with_expected("合法的 JSON 文本")
             .with_hint(format!("第 {} 行第 {} 列附近", err.line, err.column))),
