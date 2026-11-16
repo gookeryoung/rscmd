@@ -13,6 +13,7 @@ fn main() {
     let command = args.first().map(String::as_str).unwrap_or("help");
     let result = match command {
         "registry-check" => registry_check(),
+        "code-check" => code_check(),
         "arch-check" => arch_check(),
         "docs-check" => docs_check(false),
         "gen-docs" => docs_check(true),
@@ -44,6 +45,7 @@ fn print_help() {
          \n\
          命令:\n\
          \x20 registry-check  校验工具注册表、元数据与文件布局\n\
+         \x20 code-check      校验源码里用到的错误码都已在 ERROR_CODE_KINDS 登记\n\
          \x20 arch-check      校验 crate 依赖方向\n\
          \x20 docs-check      校验 docs/tools.md 是否为最新生成物\n\
          \x20 gen-docs        重新生成 docs/tools.md\n\
@@ -66,6 +68,80 @@ fn workspace_root() -> PathBuf {
         .and_then(Path::parent)
         .expect("xtask 必须位于 workspace/crates/xtask")
         .to_path_buf()
+}
+
+/// `code-check`：源码里 `RscmdError::coded("CODE", ...)` 的字面量必须都已在
+/// `ERROR_CODE_KINDS` 登记，避免新增错误码时漏登记（漏登记会回退成 kind=input、退出码 2）。
+fn code_check() -> Result<()> {
+    let registered: BTreeSet<&str> = rscmd_core::ERROR_CODE_KINDS
+        .iter()
+        .map(|(code, _)| *code)
+        .collect();
+    let crates_dir = workspace_root().join("crates");
+    let table_file = crates_dir.join("rscmd-core").join("src").join("errors.rs");
+    let mut problems = Vec::new();
+
+    for file in rust_files(&crates_dir)? {
+        // xtask 自身是仓库工具，不产出信封；errors.rs 是登记表本身（含测试夹具）。
+        if file.starts_with(crates_dir.join("xtask")) || file == table_file {
+            continue;
+        }
+        let text = fs::read_to_string(&file)
+            .map_err(|err| format!("读取 {} 失败: {err}", file.display()))?;
+        for (line, code) in coded_literals(&text) {
+            if registered.contains(code.as_str()) {
+                continue;
+            }
+            let rel = file.strip_prefix(&crates_dir).unwrap_or(&file);
+            problems.push(format!(
+                "crates/{}:{line} 使用了未登记的错误码 `{code}`，请在 crates/rscmd-core/src/errors.rs 的 ERROR_CODE_KINDS 登记",
+                rel.display()
+            ));
+        }
+    }
+
+    if problems.is_empty() {
+        println!("code-check 通过: {} 个错误码均已登记", registered.len());
+        Ok(())
+    } else {
+        Err(problems.join("\n"))
+    }
+}
+
+/// 递归收集目录下的 `.rs` 文件（跳过构建产物目录）。
+fn rust_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut files = Vec::new();
+    let mut stack = vec![dir.to_path_buf()];
+    while let Some(current) = stack.pop() {
+        for entry in fs::read_dir(&current).map_err(|err| err.to_string())? {
+            let path = entry.map_err(|err| err.to_string())?.path();
+            if path.is_dir() {
+                if path.file_name().and_then(|name| name.to_str()) != Some("target") {
+                    stack.push(path);
+                }
+            } else if path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+                files.push(path);
+            }
+        }
+    }
+    files.sort();
+    Ok(files)
+}
+
+/// 抽出 `coded("CODE"` 形式的首个参数，返回（行号, 代码）；非字面量参数直接忽略。
+fn coded_literals(text: &str) -> Vec<(usize, String)> {
+    const NEEDLE: &str = "coded(\"";
+    let mut out = Vec::new();
+    for (index, line) in text.lines().enumerate() {
+        let mut rest = line;
+        while let Some(position) = rest.find(NEEDLE) {
+            let after = &rest[position + NEEDLE.len()..];
+            let Some(end) = after.find('"') else { break };
+            out.push((index + 1, after[..end].to_string()));
+            rest = &after[end..];
+        }
+    }
+    out
 }
 
 fn registry_check() -> Result<()> {
@@ -579,6 +655,7 @@ fn check_fast() -> Result<()> {
         "warnings",
     ])?;
     registry_check()?;
+    code_check()?;
     arch_check()?;
     docs_check(false)?;
     schema_check(false)?;
@@ -1164,7 +1241,7 @@ pub fn release_preflight() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{changelog_has_version, normalize_newlines, wheel_version};
+    use super::{changelog_has_version, coded_literals, normalize_newlines, wheel_version};
 
     #[test]
     fn normalizes_crlf_before_compare() {
@@ -1204,5 +1281,29 @@ mod tests {
     fn changelog_section_match_is_whole_version() {
         let text = "## [0.1.00] - 2026-11-16\n### [0.1.0] 子标题\n";
         assert!(!changelog_has_version(text, "0.1.0"));
+    }
+
+    #[test]
+    fn collects_coded_code_literals_with_line_numbers() {
+        let source = "let a = RscmdError::coded(\"USAGE\", \"x\");\n\
+                      // 注释里的 coded(\"IGNORED\") 也算字面量\n\
+                      let b = RscmdError::coded(\"TIMEOUT\", format!(\"y\"));\n\
+                      let c = RscmdError::coded(code, \"动态\");\n";
+        let found = coded_literals(source);
+        assert_eq!(
+            found,
+            vec![
+                (1, "USAGE".to_string()),
+                (2, "IGNORED".to_string()),
+                (3, "TIMEOUT".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn coded_literals_handles_multiple_per_line_and_unterminated() {
+        let source = "coded(\"A\") ... coded(\"B\"); coded(\"C\n";
+        let found = coded_literals(source);
+        assert_eq!(found, vec![(1, "A".to_string()), (1, "B".to_string())]);
     }
 }

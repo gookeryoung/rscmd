@@ -28,3 +28,5 @@
   `registry::BUILTINS`，帮助由该表构造，`cargo xtask gen-docs` 新增 `docs/commands.md`。
 - `cargo xtask version-check` 现在校验 `CHANGELOG.md` 存在 `[workspace.package].version` 对应段落，
   缺段直接失败并提示补写，避免发布时漏写更新日志。
+- 新增 `cargo xtask code-check`：扫描 `crates/**` 中 `RscmdError::coded("...")` 字面量，未在
+  `ERROR_CODE_KINDS` 登记即失败；已并入 `check-fast`，防止漏登记导致 kind 回退成 `input`（退出码 2）。
