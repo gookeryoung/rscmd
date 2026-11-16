@@ -240,3 +240,72 @@ fn doctor_json_has_checks() {
     assert_eq!(data["ok"], true);
     assert!(data["checks"].as_array().unwrap().len() >= 3);
 }
+
+#[test]
+fn mcp_stdio_lists_and_calls_tools() {
+    use std::io::Write;
+    use std::process::Stdio;
+
+    let mut child = Command::new(env!("CARGO_BIN_EXE_rscmd"))
+        .arg("mcp")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("应能启动 rscmd mcp");
+
+    let requests = [
+        r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18"}}"#,
+        r#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#,
+        r#"{"jsonrpc":"2.0","id":2,"method":"tools/list"}"#,
+        r#"{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"case","arguments":{"text":"HelloWorld","mode":"snake"}}}"#,
+        r#"{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"json_fmt","arguments":{"json":"{"}}}"#,
+    ]
+    .join("\n")
+        + "\n";
+    child
+        .stdin
+        .as_mut()
+        .unwrap()
+        .write_all(requests.as_bytes())
+        .unwrap();
+    // 关闭 stdin 让服务读到 EOF；wait_with_output 会读取 stdout 与 stderr。
+    let output = child.wait_with_output().unwrap();
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+
+    // 通知不产生响应，因此 5 条请求只应有 4 行响应。
+    let responses: Vec<Value> = stdout.lines().map(parse_json).collect();
+    assert_eq!(responses.len(), 4, "{stdout}");
+
+    assert_eq!(responses[0]["result"]["serverInfo"]["name"], "rscmd");
+    let names: Vec<&str> = responses[1]["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect();
+    assert!(
+        names.contains(&"case") && names.contains(&"wc"),
+        "{names:?}"
+    );
+    assert_eq!(responses[2]["result"]["isError"], false);
+    assert_eq!(responses[2]["result"]["content"][0]["text"], "hello_world");
+    assert_eq!(responses[3]["result"]["isError"], true);
+    assert!(responses[3]["result"]["content"][0]["text"]
+        .as_str()
+        .unwrap()
+        .contains("INVALID_JSON"));
+}
+
+#[test]
+fn mcp_with_extra_args_prints_usage() {
+    let (code, stdout, stderr) = run(&["mcp", "extra"]);
+    assert_eq!(code, 2);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("rscmd mcp"), "{stderr}");
+}

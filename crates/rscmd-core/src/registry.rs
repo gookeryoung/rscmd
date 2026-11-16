@@ -13,6 +13,7 @@ pub const BUILTIN_COMMANDS: &[&str] = &[
     "version",
     "doctor",
     "completion",
+    "mcp",
 ];
 
 /// 内建命令的展示元数据：CLI 帮助与命令一览文档共用同一来源。
@@ -58,6 +59,11 @@ pub const BUILTINS: &[Builtin] = &[
         name: "completion",
         aliases: &[],
         about: "生成 shell 补全脚本（bash/zsh/fish/powershell）",
+    },
+    Builtin {
+        name: "mcp",
+        aliases: &[],
+        about: "以 MCP stdio server 模式运行（供模型客户端调用）",
     },
 ];
 

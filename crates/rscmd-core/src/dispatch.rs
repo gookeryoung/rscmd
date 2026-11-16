@@ -181,7 +181,8 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
                     .value_parser(clap::value_parser!(clap_complete::Shell))
                     .help("目标 shell：bash / zsh / fish / powershell"),
             ),
-        );
+        )
+        .subcommand(builtin_command("mcp"));
 
     root
 }
@@ -408,6 +409,12 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
         }
         "schema" => Ok(schema_data(tools)),
         "completion" => Ok(completion_data(tools, sub)),
+        // MCP 是阻塞式 stdio 服务，只能由 CLI 可执行文件进入；这里给出明确指引。
+        "mcp" => Err(RscmdError::coded(
+            "USAGE",
+            "MCP server 需直接运行 `rscmd mcp`（stdin/stdout 协议）",
+        )
+        .with_hint("Python 绑定不支持 MCP 服务模式")),
         "version" => Ok(builtins::version_data()),
         "doctor" => Ok(builtins::doctor_data(
             tools,

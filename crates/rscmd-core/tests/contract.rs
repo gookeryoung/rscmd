@@ -614,6 +614,11 @@ fn dispatch_builtins() {
     assert_eq!(data["global"]["title"], "GlobalArgs");
     assert!(data["global"]["properties"].is_object());
 
+    // MCP 服务只能从 CLI 可执行文件进入，库内调用给出明确用法错误。
+    let out = dispatch(&TOOLS, &argv(&["mcp"]));
+    assert_eq!(out.exit_code(), 2);
+    assert_eq!(out.result.unwrap_err().code, "USAGE");
+
     let out = dispatch(&TOOLS, &argv(&["version"]));
     assert_eq!(out.result.unwrap()["name"], "rscmd");
 

@@ -8,6 +8,7 @@ pub mod ctx;
 pub mod dispatch;
 pub mod envelope;
 pub mod errors;
+pub mod mcp;
 pub mod registry;
 pub mod render;
 pub mod tool;

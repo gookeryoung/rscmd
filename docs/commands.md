@@ -13,6 +13,7 @@
 | `rscmd version(v)` | 输出版本信息 |
 | `rscmd doctor(d)` | 输出运行环境自检信息 |
 | `rscmd completion` | 生成 shell 补全脚本（bash/zsh/fish/powershell） |
+| `rscmd mcp` | 以 MCP stdio server 模式运行（供模型客户端调用） |
 
 ## 工具命令
 

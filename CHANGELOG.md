@@ -29,6 +29,9 @@
   环境结论可通过 `DoctorProbe` 注入，便于单测覆盖各分支。
 - 结果信封新增可选 `subcommand` 字段：工具带下级子命令时写入子命令名；普通工具不出现该键。
   属兼容扩展（`rscmd-result/1` 不变），无子命令时消费方看到的字段集合与之前完全一致。
+- 新增 `rscmd mcp`：以 MCP stdio server 模式运行，支持 `initialize`、`ping`、`tools/list`、
+  `tools/call`。仅暴露有 JSON 入口的非 GUI 工具，`inputSchema` 直接复用工具 schema；
+  协议版本 2025-06-18。未引入第三方依赖；该模式只由 CLI 可执行文件提供。
 
 ### 变更
 

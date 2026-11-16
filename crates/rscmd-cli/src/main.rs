@@ -20,6 +20,14 @@ fn exit_on_interrupt(flags: RawFlags) -> ! {
 
 fn main() -> ExitCode {
     let argv: Vec<String> = std::env::args().skip(1).collect();
+    // MCP 是阻塞式 stdio 服务，不走 clap/信封路径，直接接管入口。
+    if argv.first().map(String::as_str) == Some("mcp") {
+        return if argv.len() == 1 {
+            serve_mcp()
+        } else {
+            mcp_usage()
+        };
+    }
     // 注册失败（受限环境）时不阻断命令，退回系统默认中断行为。
     let _ = ctrlc::set_handler({
         let flags = scan_flags(&argv);
@@ -37,6 +45,44 @@ fn main() -> ExitCode {
     }
 
     ExitCode::from(outcome.exit_code().clamp(0, 255) as u8)
+}
+
+fn mcp_usage() -> ExitCode {
+    eprintln!(
+        "用法: rscmd mcp\n\n\
+         以 MCP stdio server 模式运行：从 stdin 逐行读取 JSON-RPC 请求，向 stdout 写响应。"
+    );
+    ExitCode::from(2)
+}
+
+/// 逐行读取 JSON-RPC 请求并写回响应；stdin 关闭后正常退出。
+fn serve_mcp() -> ExitCode {
+    use std::io::{BufRead, BufWriter, Write};
+
+    let tools = rscmd_tools::tools();
+    let stdin = std::io::stdin();
+    let mut stdout = BufWriter::new(std::io::stdout().lock());
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        if line.trim().is_empty() {
+            continue;
+        }
+        let response = match serde_json::from_str::<serde_json::Value>(&line) {
+            Ok(request) => rscmd_core::mcp::handle_request(tools, &request),
+            Err(_) => Some(rscmd_core::mcp::parse_error_response()),
+        };
+        let Some(response) = response else {
+            continue; // 通知不需要响应
+        };
+        let text = serde_json::to_string(&response).unwrap_or_default();
+        if writeln!(stdout, "{text}")
+            .and_then(|_| stdout.flush())
+            .is_err()
+        {
+            return ExitCode::from(1);
+        }
+    }
+    ExitCode::SUCCESS
 }
 
 #[cfg(test)]

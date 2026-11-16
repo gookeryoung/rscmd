@@ -73,7 +73,7 @@ fn human_success(tool: &str, data: &Value) -> String {
     }
 }
 
-fn human_error(err: &RscmdError) -> String {
+pub(crate) fn human_error(err: &RscmdError) -> String {
     let mut out = format!("错误[{}]: {}\n", err.code, err.message);
     if let Some(field) = &err.field {
         out.push_str(&format!("  字段: {field}\n"));
