@@ -37,6 +37,10 @@ zip = { version = "3", default-features = false, features = ["deflate-flate2"] }
 flate2 = { version = "1", default-features = false, features = ["rust_backend"] }
 toml = "0.9"
 serde_norway = "0.9"
+# GUI POC：仅 rscmd-gui 的 gui feature 启用，默认门禁不编译。
+eframe = { version = "0.29", default-features = false, features = ["default_fonts", "glow", "wayland", "x11"] }
+image = { version = "0.25", default-features = false, features = ["bmp", "ico", "png"] }
+arboard = { version = "3", default-features = false, features = ["image-data"] }
 
 [profile.release]
 lto = "thin"

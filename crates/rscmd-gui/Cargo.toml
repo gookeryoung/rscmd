@@ -1,0 +1,22 @@
+[package]
+description            = "rscmd 的 GUI 前端（POC：reshack 资源编辑器）"
+edition.workspace      = true
+license.workspace      = true
+name                   = "rscmd-gui"
+publish.workspace      = true
+rust-version.workspace = true
+version.workspace      = true
+
+[features]
+default = [  ]
+gui     = [ "dep:eframe", "dep:image", "dep:arboard" ]
+
+[[bin]]
+name              = "rscmd-reshackw"
+path              = "src/main.rs"
+required-features = [ "gui" ]
+
+[dependencies]
+arboard = {workspace = true, optional = true}
+eframe  = {workspace = true, optional = true}
+image   = {workspace = true, optional = true}

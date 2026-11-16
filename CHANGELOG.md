@@ -152,6 +152,12 @@
   `extract` / `replace` / `export-all` 写文件需 `--confirm`，`--dry-run` 只返回计划；
   命名资源（字符串 ID）与 fcmd 一致跳过。PE 解析与写回为手写实现，未引入新依赖。
   `ERROR_CODE_KINDS` 登记 `RESOURCE_NOT_FOUND`（not_found，退出码 4）。
+- 新增 `rscmd-gui` crate（阶段 0 POC，默认不构建）：启用 `gui` feature 后产出
+  `rscmd-reshackw`，验证 egui 窗口、系统中文字体、ICO/BMP 预览与剪贴板；
+  `eframe` 0.29 / `image` 0.25 / `arboard` 3 均为 optional，默认
+  `cargo build/test/clippy --workspace` 不编译 GUI 依赖，CLI、PyO3 与 wheel 行为不变。
+  `--self-test` 可在无窗口环境验证字体、图像解码与剪贴板；实测 release 二进制
+  4,798,976 字节。
 - `ERROR_CODE_KINDS` 登记 `PARSE_FAILED`（invalid_input，退出码 3）：输入文件语法非法，
   或源格式中存在目标格式无法表示的取值（TOML `inf`/`nan`、YAML 非字符串键与重复键等）。
 
