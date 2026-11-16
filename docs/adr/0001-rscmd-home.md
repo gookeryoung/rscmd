@@ -81,6 +81,12 @@
 - `net::download_with_cache(url, timeout, RetryPolicy, Option<&DownloadCache>)`：
   命中直接返回；未命中走 `download_with` 并写回；`None` 或写入失败都按无缓存处理。
 - 写入前 `create_dir_all`；创建失败直接放弃本次缓存写入。
+- 跨进程互斥用 `lock::DirLock`：`<dir>/<name>.lock` 以 `create_new` 独占创建，
+  `try_acquire` 立即返回 `LOCK_BUSY`，`acquire(dir, name, timeout)` 轮询到超时返回
+  `LOCK_TIMEOUT`，目录只读或不可创建返回 `LOCK_UNAVAILABLE`（三个码均登记在
+  `ERROR_CODE_KINDS`，kind 为 runtime）；持有者 Drop 时删除锁文件（正常返回与 panic 都释放，
+  进程被强杀会残留，因此调用方必须带超时）。下载缓存写入同一键时用 500 ms 上限的
+  `acquire` 串行化，拿不到锁就放弃本次写入，不改变工具结果。
 - resolver 与缓存放在 `rscmd-runtime`，不进入 `rscmd-core`，避免核心层依赖文件系统布局。
 
 ### 6. 跨平台差异
@@ -110,4 +116,5 @@
 1. `rscmd-runtime` 目录 resolver + 单元测试（优先级、平台分支、空值/缺值）；
 2. 下载缓存读写、TTL 失效、容量淘汰、损坏清理 + 可注入时钟/策略的单测；
 3. `download_with_cache` 接入与端到端测试（命中不重复下载、不可写时降级）；
-4. CHANGELOG 与文档生成物同步；不新增错误码（缓存失败不上浮）。
+4. 跨进程目录锁 `lock::DirLock` + 8 进程竞争集成测试，接入缓存写入路径；
+5. CHANGELOG 与文档生成物同步；缓存失败不上浮（仅锁的原语错误码供未来消费者使用）。

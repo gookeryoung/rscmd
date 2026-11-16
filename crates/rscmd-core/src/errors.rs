@@ -37,6 +37,10 @@ pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
     ("RANGE_NOT_SUPPORTED", ErrorKind::Runtime),
     ("RANGE_NOT_SATISFIABLE", ErrorKind::InvalidInput),
     ("CHECKSUM_MISMATCH", ErrorKind::Runtime),
+    // 跨进程目录锁（与 rscmd-runtime 的 LockError::code 对应）
+    ("LOCK_BUSY", ErrorKind::Runtime),
+    ("LOCK_TIMEOUT", ErrorKind::Runtime),
+    ("LOCK_UNAVAILABLE", ErrorKind::Runtime),
     // 用户中断（Ctrl+C），退出码 130
     ("INTERRUPTED", ErrorKind::Interrupted),
 ];

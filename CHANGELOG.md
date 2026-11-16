@@ -100,6 +100,12 @@
   4xx/5xx 视为探测完成（`ok=false`），只有传输层/超时/scheme 问题才返回
   `NET_TIMEOUT` / `NET_TRANSPORT` / `UNSUPPORTED_SCHEME`。新增 `net` 工具域 crate
   `rscmd-tool-net`（无新增第三方依赖，复用 runtime 的 reqwest）。
+- `rscmd-runtime` 新增跨进程目录锁 `lock::DirLock`：用 `create_new` 独占创建
+  `<dir>/<name>.lock`，`try_acquire` 立即返回 `LOCK_BUSY`，`acquire(dir, name, timeout)`
+  轮询到上限返回 `LOCK_TIMEOUT`，目录只读或无法创建返回 `LOCK_UNAVAILABLE`；
+  锁文件内的 pid/获取时间仅供排障，持有者 Drop 时删除（panic 亦释放，进程被强杀则残留）。
+  下载缓存写同一键时用它串行化（500 ms 上限，拿不到锁放弃本次写入，下载结果不受影响）。
+- `ERROR_CODE_KINDS` 登记 `LOCK_BUSY` / `LOCK_TIMEOUT` / `LOCK_UNAVAILABLE`（runtime，退出码 1）。
 
 ### 变更
 

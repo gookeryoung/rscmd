@@ -6,6 +6,7 @@ pub mod concurrency;
 pub mod data;
 pub mod fs;
 pub mod home;
+pub mod lock;
 pub mod net;
 pub mod proc;
 pub mod text;

@@ -11,9 +11,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::fs::atomic_write;
 use crate::home::Dirs;
+use crate::lock::DirLock;
 use crate::net::sha256_hex;
 
 const CACHE_SCHEMA: &str = "rscmd-cache/1";
+
+/// 同一缓存键的写入锁等待上限；超时即放弃本次写入（缓存是尽力而为）。
+const LOCK_TIMEOUT: Duration = Duration::from_millis(500);
 
 /// 缓存失效与容量边界。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -100,6 +104,10 @@ impl DownloadCache {
     /// 写入缓存；任何 IO 失败都静默放弃本次写入。
     pub fn put(&self, url: &str, data: &[u8]) {
         let key = cache_key(url);
+        // 同一键的写入串行化：多进程同时写同一 URL 时不互相删除/覆盖半成品。
+        let Ok(_lock) = DirLock::acquire(&self.root, &key, LOCK_TIMEOUT) else {
+            return;
+        };
         let meta = Meta {
             schema: CACHE_SCHEMA.to_string(),
             url: normalize_url(url),
@@ -401,6 +409,20 @@ mod tests {
         );
         cache.put("https://example.com/a", b"hello");
         assert!(cache.get("https://example.com/a").is_none());
+    }
+
+    #[test]
+    fn put_skips_while_same_key_is_locked() {
+        let dir = temp_dir().unwrap();
+        let (_, cache) = cache(dir.path(), CachePolicy::default(), 1_000);
+        let key = cache_key("https://example.com/a");
+        let guard = crate::lock::DirLock::try_acquire(dir.path(), &key).unwrap();
+        // 键被占用时等待到超时后放弃写入，不报错。
+        cache.put("https://example.com/a", b"hello");
+        assert!(cache.get("https://example.com/a").is_none());
+        drop(guard);
+        cache.put("https://example.com/a", b"hello");
+        assert_eq!(cache.get("https://example.com/a").unwrap(), b"hello");
     }
 
     #[test]
