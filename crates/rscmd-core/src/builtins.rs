@@ -35,11 +35,11 @@ pub enum NativeFreshness {
     Fresh,
 }
 
-/// 不参与 Python 扩展产物的 crate：构建脚本与纯 CLI 层。
+/// 不参与 Python 扩展产物的 crate：构建脚本、纯 CLI 层与 GUI 前端。
 ///
-/// 与 `cargo xtask py-fresh-check` 的口径一致：改这两个 crate 不需要重建 `_native`，
+/// 与 `cargo xtask py-fresh-check` 的口径一致：改这些 crate 不需要重建 `_native`，
 /// 因此不能把它们算进「扩展是否过期」的源码集合。
-const EXTENSION_IRRELEVANT_CRATES: &[&str] = &["xtask", "rscmd-cli"];
+const EXTENSION_IRRELEVANT_CRATES: &[&str] = &["xtask", "rscmd-cli", "rscmd-gui"];
 
 impl NativeFreshness {
     /// 依据「扩展 mtime」与「最新源码 mtime」给出结论。
@@ -648,16 +648,25 @@ mod tests {
     fn newest_mtime_skips_irrelevant_crates() {
         let root = temp_dir("skip");
         std::fs::create_dir_all(root.join("xtask")).unwrap();
+        std::fs::create_dir_all(root.join("rscmd-gui")).unwrap();
         std::fs::create_dir_all(root.join("tool")).unwrap();
         let xtask_src = root.join("xtask").join("main.rs");
+        let gui_src = root.join("rscmd-gui").join("lib.rs");
         let tool_src = root.join("tool").join("lib.rs");
         std::fs::write(&xtask_src, "x").unwrap();
+        std::fs::write(&gui_src, "x").unwrap();
         std::fs::write(&tool_src, "x").unwrap();
         std::fs::OpenOptions::new()
             .append(true)
             .open(&xtask_src)
             .unwrap()
             .set_modified(at(2_000_000_000))
+            .unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&gui_src)
+            .unwrap()
+            .set_modified(at(2_500_000_000))
             .unwrap();
         std::fs::OpenOptions::new()
             .append(true)
@@ -670,7 +679,7 @@ mod tests {
             EXTENSION_IRRELEVANT_CRATES.contains(&name)
         })
         .expect("应找到 tool 下的 .rs");
-        assert_eq!(found, at(1_000_000_000), "xtask 应被跳过");
+        assert_eq!(found, at(1_000_000_000), "xtask 与 rscmd-gui 应被跳过");
 
         std::fs::remove_dir_all(root).ok();
     }

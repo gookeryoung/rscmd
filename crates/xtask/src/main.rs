@@ -983,7 +983,8 @@ fn native_artifact(root: &Path) -> Option<PathBuf> {
 }
 
 /// 影响原生模块的输入：`crates/` 下的 Rust 源码与 Cargo.toml，加上根清单。
-/// `xtask`（仓库工具）与 `rscmd-cli`（独立二进制）不参与扩展模块构建，排除以免误报。
+/// `xtask`（仓库工具）、`rscmd-cli`（独立二进制）与 `rscmd-gui`（GUI 前端）
+/// 不参与扩展模块构建，排除以免误报。
 fn newest_input(root: &Path) -> Result<Option<(PathBuf, SystemTime)>> {
     let mut newest: Option<(PathBuf, SystemTime)> = None;
     let crates_dir = root.join("crates");
@@ -996,7 +997,7 @@ fn newest_input(root: &Path) -> Result<Option<(PathBuf, SystemTime)>> {
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_default();
-        if !dir.is_dir() || matches!(name, "xtask" | "rscmd-cli") {
+        if !dir.is_dir() || matches!(name, "xtask" | "rscmd-cli" | "rscmd-gui") {
             continue;
         }
         collect_inputs(&dir, &mut newest)?;
