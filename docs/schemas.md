@@ -79,6 +79,13 @@
 | `mode` | string | `"base64"` | - | 编解码方式：base64/hex/url |
 | `text` | string | `—` | ✅ | 待编码或解码的文本 |
 
+## EnvArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `name` | — | `null` | - | 变量名（Windows 下不区分大小写）；不给出则列出全部 |
+| `prefix` | — | `null` | - | 变量名前缀过滤（Windows 下不区分大小写） |
+
 ## FiledateArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

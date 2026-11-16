@@ -114,6 +114,11 @@
   仅 parsing/formatting）；Python 绑定无 `--confirm`，因此入口为只读。
 - `ERROR_CODE_KINDS` 登记 `CONFIRM_REQUIRED`（usage，退出码 2），并新增
   `ToolCtx::require_confirm`：`--dry-run` 直接放行，否则缺少 `--confirm` 时返回该错误码。
+- 新增工具 `env`（system 域，别名 `envtool`）：只读查询环境变量，不提供 setenv/删除。
+  默认列出全部变量并按名字排序，`NAME` 精确过滤、`--prefix` 前缀过滤；输出
+  `{count, case_insensitive, vars:[{name,value}], non_utf8}`。Windows 下变量名大小写不敏感
+  （精确与前缀匹配均按 ASCII 不敏感比较），Unix 保持敏感；非 UTF-8 名称/值用 U+FFFD 替换
+  并在 `non_utf8` 中列出，不报错。未引入第三方依赖。
 
 ### 变更
 

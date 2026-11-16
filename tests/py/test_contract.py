@@ -29,6 +29,7 @@ def test_tools_contains_p0_tools() -> None:
         "timestamp",
         "urlcheck",
         "filedate",
+        "env",
     } <= names
 
 
@@ -52,6 +53,12 @@ def test_invoke_filedate_reads_mtime(tmp_path: Path) -> None:
     assert out["path"] == str(path)
     assert out["mtime_unix"] > 0
     assert out["rfc3339"].endswith("Z")
+
+
+def test_invoke_env_reads_path() -> None:
+    out = rscmd.invoke("env", {"name": "PATH"})
+    assert out["count"] >= 1
+    assert out["vars"][0]["name"].lower() == "path"
 
 
 def test_invoke_csv(tmp_path: Path) -> None:

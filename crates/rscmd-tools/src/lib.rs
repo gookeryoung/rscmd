@@ -53,6 +53,8 @@ mod tests {
         assert!(names.contains(&"which"));
         #[cfg(feature = "system")]
         assert!(names.contains(&"filedate"));
+        #[cfg(feature = "system")]
+        assert!(names.contains(&"env"));
         #[cfg(feature = "net")]
         assert!(names.contains(&"urlcheck"));
         assert!(!names.is_empty());

@@ -159,3 +159,27 @@ fn filedate_write_without_confirm_is_rejected() {
     assert_eq!(err.code, "CONFIRM_REQUIRED");
     assert_eq!(err.exit_code(), 2);
 }
+
+#[test]
+fn env_lists_filters_and_never_returns_zero_for_path() {
+    let def = rscmd_tool_system::env::def();
+    let run = def.run_json.expect("env 应暴露 JSON 入口");
+
+    let all = run(&mut ToolCtx::default(), &json!({})).unwrap();
+    assert!(all["count"].as_u64().unwrap() >= 1);
+    assert_eq!(
+        all["count"].as_u64().unwrap(),
+        all["vars"].as_array().unwrap().len() as u64
+    );
+    assert_eq!(all["case_insensitive"], json!(cfg!(windows)));
+
+    let path = run(&mut ToolCtx::default(), &json!({"name": "PATH"})).unwrap();
+    assert!(path["count"].as_u64().unwrap() >= 1);
+
+    let none = run(
+        &mut ToolCtx::default(),
+        &json!({"prefix": "RSCMD_NO_SUCH_PREFIX_"}),
+    )
+    .unwrap();
+    assert_eq!(none["count"], 0);
+}
