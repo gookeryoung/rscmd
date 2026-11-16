@@ -165,12 +165,17 @@ mod tests {
         )
     }
 
+    /// Windows 上用 `cmd` 内建 echo 而不是 PowerShell：
+    /// 并发用例下 PowerShell 冷启动可能超过 10s，会把「快速命令」用例误判成超时。
+    /// 多行消息按 `&` 串成多条 echo，输出与逐行 echo 一致。
     #[cfg(windows)]
     fn echo_cmd(msg: &str) -> (String, Vec<String>) {
-        (
-            "powershell".to_string(),
-            vec!["-Command".to_string(), format!("Write-Output '{msg}'")],
-        )
+        let script = msg
+            .lines()
+            .map(|line| format!("echo {line}"))
+            .collect::<Vec<_>>()
+            .join("&");
+        ("cmd".to_string(), vec!["/C".to_string(), script])
     }
 
     #[cfg(not(windows))]
@@ -179,6 +184,32 @@ mod tests {
         (
             "sh".to_string(),
             vec!["-c".to_string(), format!("printf '%s\\n' \"{msg}\"")],
+        )
+    }
+
+    /// 产出约 3.2KB 输出，足够超过 `max_bytes`；用循环而不是单条超长命令，
+    /// 避免 Windows `cmd` 约 8KB 的命令行长度上限。
+    #[cfg(windows)]
+    fn big_output_cmd() -> (String, Vec<String>) {
+        (
+            "cmd".to_string(),
+            vec![
+                "/C".to_string(),
+                "(for /L %i in (1,1,100) do @echo 0123456789abcdef0123456789abcdef)".to_string(),
+            ],
+        )
+    }
+
+    #[cfg(not(windows))]
+    fn big_output_cmd() -> (String, Vec<String>) {
+        (
+            "sh".to_string(),
+            vec![
+                "-c".to_string(),
+                "i=0; while [ $i -lt 100 ]; do echo 0123456789abcdef0123456789abcdef; \
+                 i=$((i+1)); done"
+                    .to_string(),
+            ],
         )
     }
 
@@ -214,11 +245,12 @@ mod tests {
 
     #[test]
     fn run_truncates_large_output() {
-        let (prog, args) = echo_cmd(&"x".repeat(10000));
+        let (prog, args) = big_output_cmd();
         let mut cmd = Command::new(prog);
         cmd.args(&args);
         let out = run(&mut cmd, Duration::from_secs(10), 1024).unwrap();
-        assert!(out.stdout.len() <= 1024, "max_bytes 应截断输出");
+        // 截断保留最后 limit 字节：正好 1024 才说明确实产出了超限输出。
+        assert_eq!(out.stdout.len(), 1024, "max_bytes 应截断到上限");
     }
 
     #[test]
