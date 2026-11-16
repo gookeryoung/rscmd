@@ -88,6 +88,12 @@
   对象转 CSV 时列按列名字典序、`null`/缺失列写空、嵌套值写 JSON 文本。
   条数上限沿用全局 `--limit`（`ToolCtx.limit`），JSON 入口另有同义 `limit` 字段。
   依赖新增 `csv` crate（v1，默认 features，无额外启用项）。
+- 新增工具 `timestamp`（data 域，别名 `timestamptool`）：Unix 秒（可为负数）与 RFC3339
+  双向转换，输出 `{unix, rfc3339, offset}`；`--offset` 指定固定偏移（`+08:00`/`-05:30`/
+  `Z`/`utc`），`--add` 按固定秒数加减（单位 `s`/`m`/`h`/`d`/`w`，`1d` = 86400 秒）。
+  时区一律来自显式参数：不读系统时区、不做隐式本地转换，跨机器结果一致；非法输入、
+  偏移与时长分别返回 `INVALID_ARGS`（field 为 `input`/`offset`/`add`）。
+  依赖新增 `time` crate（v0.3，仅 `parsing` + `formatting` 两个 feature，无本地时区支持）。
 
 ### 变更
 

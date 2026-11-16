@@ -55,6 +55,28 @@ fn csv_rejects_unknown_direction() {
 }
 
 #[test]
+fn timestamp_converts_unix_to_rfc3339() {
+    let def = rscmd_tool_data::timestamp::def();
+    let run = def.run_json.expect("timestamp 应暴露 JSON 入口");
+    let mut ctx = ToolCtx::default();
+    let out = run(&mut ctx, &json!({"input": "0", "offset": "+08:00"})).unwrap();
+    assert_eq!(out["unix"], 0);
+    assert_eq!(out["rfc3339"], "1970-01-01T08:00:00+08:00");
+    assert_eq!(out["offset"], "+08:00");
+}
+
+#[test]
+fn timestamp_rejects_unknown_offset() {
+    let def = rscmd_tool_data::timestamp::def();
+    let run = def.run_json.expect("timestamp 应暴露 JSON 入口");
+    let mut ctx = ToolCtx::default();
+    let err = run(&mut ctx, &json!({"input": "0", "offset": "+25:00"})).unwrap_err();
+    assert_eq!(err.code, "INVALID_ARGS");
+    assert_eq!(err.exit_code(), 3);
+    assert_eq!(err.field.as_deref(), Some("offset"));
+}
+
+#[test]
 fn stat_summarizes_values() {
     let def = rscmd_tool_data::stat::def();
     let run = def.run_json.expect("stat 应暴露 JSON 入口");

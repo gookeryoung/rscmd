@@ -10,6 +10,7 @@
 | `csv` | `csvtool` | CSV 与 JSON 互转，自动判定表头与分隔符 | `read` | `structured` |
 | `json_fmt` | `jsonfmt` | 校验并格式化 JSON；非法输入返回可自纠的错误 | `none` | `structured` |
 | `stat` | `stattool` | 数值统计：计数、求和、均值、中位数与分位数 | `none` | `structured` |
+| `timestamp` | `timestamptool` | Unix 秒与 RFC3339 互转，支持固定偏移时区与日期加减 | `none` | `structured` |
 | `hash` | `hashtool` | 计算文本或文件的 SHA-256（hex） | `read` | `structured` |
 | `codec` | `codetool` | 文本编解码：base64 / hex / URL | `none` | `structured` |
 | `filesearch` | `filesearchtool` | 按文件名 glob 与内容子串检索文件，支持 --limit 截断 | `read` | `structured` |

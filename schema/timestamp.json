@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TimestampArgs",
+  "type": "object",
+  "properties": {
+    "add": {
+      "description": "加减时长：`1d`、`-2h`、`30m`、`1w`（单位 s/m/h/d/w，按固定秒数换算）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "input": {
+      "description": "Unix 秒（可为负数）或 RFC3339 时间",
+      "type": "string"
+    },
+    "offset": {
+      "description": "输出时区偏移：`+08:00`、`-05:30`、`Z` 或 `utc`；不读系统时区",
+      "type": "string",
+      "default": "+00:00"
+    }
+  },
+  "required": [
+    "input"
+  ]
+}
