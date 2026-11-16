@@ -422,7 +422,14 @@ fn dispatch_builtins() {
     assert_eq!(out.result.unwrap_err().code, "TOOL_NOT_FOUND");
 
     let out = dispatch(&TOOLS, &argv(&["schema"]));
-    assert_eq!(out.result.unwrap().as_array().unwrap().len(), 2);
+    let data = out.result.unwrap();
+    assert_eq!(data["schema"], "rscmd-schema/1");
+    assert_eq!(data["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(data["tools"].as_array().unwrap().len(), 2);
+    let builtins = data["builtins"].as_array().unwrap();
+    assert!(builtins.contains(&json!("doctor")));
+    assert_eq!(data["global"]["title"], "GlobalArgs");
+    assert!(data["global"]["properties"].is_object());
 
     let out = dispatch(&TOOLS, &argv(&["version"]));
     assert_eq!(out.result.unwrap()["name"], "rscmd");

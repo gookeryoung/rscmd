@@ -6,6 +6,8 @@ use crate::errors::RscmdError;
 
 pub const RESULT_SCHEMA: &str = "rscmd-result/1";
 pub const ERROR_SCHEMA: &str = "rscmd-error/1";
+/// `rscmd schema` 自描述输出的契约版本。
+pub const SCHEMA_CONTRACT: &str = "rscmd-schema/1";
 
 pub fn success(tool: &str, data: Value) -> Value {
     result(tool, data, true)

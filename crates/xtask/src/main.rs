@@ -310,7 +310,9 @@ fn generate_global_args_doc() -> String {
 fn generate_tool_schemas_doc() -> String {
     let mut out = String::from(
         "# 工具参数 Schema 摘要（自动生成，勿手改）\n\n\
-         本文件由 `cargo xtask gen-docs` 生成；完整 schema 见 `schema/*.json`。\n\n",
+         本文件由 `cargo xtask gen-docs` 生成；完整 schema 见 `schema/*.json`。\n\n\
+         需要机器可读的全量自描述时，运行 `rscmd schema --json`：\n\
+         `data` 为 `rscmd-schema/1` 对象，含 `version`、`tools`、`builtins`、`global` 四个字段。\n\n",
     );
     for tool in rscmd_tools::tools() {
         let Some(schema_fn) = tool.schema else {

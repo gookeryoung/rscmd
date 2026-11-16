@@ -2,6 +2,9 @@
 
 本文件由 `cargo xtask gen-docs` 生成；完整 schema 见 `schema/*.json`。
 
+需要机器可读的全量自描述时，运行 `rscmd schema --json`：
+`data` 为 `rscmd-schema/1` 对象，含 `version`、`tools`、`builtins`、`global` 四个字段。
+
 ## CaseArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

@@ -17,6 +17,7 @@ use crate::args::{
 };
 use crate::builtins;
 use crate::ctx::ToolCtx;
+use crate::envelope;
 use crate::errors::RscmdError;
 use crate::registry::Registry;
 use crate::tool::{meta_json, ToolDef};
@@ -210,9 +211,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches) -> Outcome
                 ),
             }
         }
-        "schema" => Ok(Value::Array(
-            tools.iter().map(meta_json).collect::<Vec<_>>(),
-        )),
+        "schema" => Ok(schema_data(tools)),
         "version" => Ok(builtins::version_data()),
         "doctor" => Ok(builtins::doctor_data(
             tools,
@@ -242,6 +241,18 @@ fn invoke_tool(
             format!("未知工具: {name}"),
         )),
     }
+}
+
+/// `rscmd schema` 的自描述输出：契约版本 + 工具 + 内建命令 + 全局参数 schema。
+pub fn schema_data(tools: &'static [ToolDef]) -> Value {
+    let global = serde_json::from_str(&crate::args::global_schema()).unwrap_or(Value::Null);
+    json!({
+        "schema": envelope::SCHEMA_CONTRACT,
+        "version": env!("CARGO_PKG_VERSION"),
+        "tools": tools.iter().map(meta_json).collect::<Vec<_>>(),
+        "builtins": crate::registry::BUILTIN_COMMANDS,
+        "global": global,
+    })
 }
 
 fn list_tools(tools: &'static [ToolDef], for_llm: bool) -> Result<Value, RscmdError> {
