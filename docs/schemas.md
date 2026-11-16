@@ -151,6 +151,12 @@
 | `output_dir` | — | `null` | - | 输出目录（export-all）；缺省为 PE 文件同目录下的 `<文件名>_resources` |
 | `type_id` | — | `null` | - | 资源类型 ID（extract / replace 必填，如 3=Icon、16=Version、24=Manifest） |
 
+## ReshackwArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `file` | — | `—` | - | 启动时打开的文件（PE 或已导出的 ICO/BMP/PNG）；缺省只开窗口 |
+
 ## WhichArgs
 
 | 参数 | 类型 | 默认 | 必填 | 说明 |

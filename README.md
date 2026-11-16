@@ -3,7 +3,8 @@
 面向小模型调用的 Rust 工具集：**单一入口、稳定 JSON 信封、可自描述的 schema**。
 业务逻辑全部在 Rust 侧，同时提供 CLI、Python 绑定和 MCP stdio server 三种调用方式。
 
-- 18 个内置工具，覆盖文本、数据、加密、系统与网络
+- 19 个内置工具，覆盖文本、数据、加密、系统与网络
+- GUI 前端不侵入默认构建：`rscmd reshackw` 负责拉起独立二进制 `rscmd-reshackw`
 - 成功 / 错误信封版本化（`rscmd-result/1` / `rscmd-error/1`），退出码语义固定
 - `--json` 机读优先，人读输出不污染 stdout 契约
 - 工具元数据与参数 Schema 由代码生成，`rscmd schema --json` 可自描述
@@ -118,6 +119,8 @@ $ rscmd --json run json_fmt '{'
 | system | `filedate` | 读取或写入文件修改时间（写需 `--confirm`） |
 | system | `filesearch` | 按文件名 glob 与内容子串检索文件 |
 | system | `path` | 路径规范化、拼接、相对/绝对路径判定 |
+| system | `reshack` | 查看/导出/原位替换 Windows PE 资源 |
+| system | `reshackw` | 启动 reshack GUI（独立二进制 `rscmd-reshackw`） |
 | system | `which` | 在 PATH 中查找可执行文件 |
 | net | `urlcheck` | 探测 URL 的 HTTP 状态码、重定向链与耗时 |
 
@@ -136,6 +139,22 @@ $ rscmd --json run json_fmt '{'
 
 全局参数可放在子命令前后。完整 Schema 见 [schema/global.json](schema/global.json)，
 说明见 [docs/global-args.md](docs/global-args.md)。
+
+## GUI 前端
+
+`rscmd reshackw` 只做「定位 + 拉起」，GUI 本体是独立二进制 `rscmd-reshackw`
+（位于 `crates/rscmd-gui`，默认不参与 CLI / wheel 构建）：
+
+```bash
+cargo build -p rscmd-gui --features gui   # 产出 target/<profile>/rscmd-reshackw[.exe]
+rscmd reshackw                            # 打开窗口
+rscmd reshackw app.exe                    # 打开时附带文件（当前 POC 仅预览图片）
+RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # 显式指定二进制
+```
+
+定位顺序：`RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；
+找不到时返回 `GUI_UNAVAILABLE`（退出码 1）并提示构建命令。
+该工具标记为 `gui: true`：`tools --for-llm` 与 MCP 不会暴露它，Python 侧为 `hidden`。
 
 ## 输出契约
 

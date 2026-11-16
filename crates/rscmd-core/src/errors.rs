@@ -29,6 +29,8 @@ pub const ERROR_CODE_KINDS: &[(&str, ErrorKind)] = &[
     ("INVALID_ENCODING", ErrorKind::InvalidInput),
     ("INVALID_REGEX", ErrorKind::InvalidInput),
     ("PARSE_FAILED", ErrorKind::InvalidInput),
+    // GUI 前端（rscmd-gui）未构建或路径无效
+    ("GUI_UNAVAILABLE", ErrorKind::Runtime),
     // 运行期失败
     ("TIMEOUT", ErrorKind::Runtime),
     ("IO", ErrorKind::Runtime),

@@ -160,6 +160,12 @@
   4,798,976 字节。
 - `ERROR_CODE_KINDS` 登记 `PARSE_FAILED`（invalid_input，退出码 3）：输入文件语法非法，
   或源格式中存在目标格式无法表示的取值（TOML `inf`/`nan`、YAML 非字符串键与重复键等）。
+- 新增工具 `reshackw`（system 域，别名 `reshackgui`，`gui: true`）：`rscmd reshackw [FILE]`
+  定位并拉起独立二进制 `rscmd-reshackw`，按 `RSCMD_RESHACKW` → 与 `rscmd` 同目录的
+  `rscmd-reshackw[.exe]` 顺序查找，启动后立即返回 `{gui, pid, file}`；缺失时返回
+  `ERROR_CODE_KINDS` 新登记的 `GUI_UNAVAILABLE`（runtime，退出码 1）并提示构建命令。
+  只做进程拉起，不把 eframe / image / arboard 带进 CLI、PyO3 与 wheel；
+  `tools --for-llm`、MCP 与 Python 侧均不暴露（`python: hidden`）。
 
 ### 变更
 

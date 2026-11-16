@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ReshackwArgs",
+  "type": "object",
+  "properties": {
+    "file": {
+      "description": "启动时打开的文件（PE 或已导出的 ICO/BMP/PNG）；缺省只开窗口",
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  }
+}
