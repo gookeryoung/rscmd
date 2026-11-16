@@ -15,6 +15,7 @@ pub const GLOBAL_CONFIRM: &str = "_rscmd_confirm";
 pub const GLOBAL_WORKERS: &str = "_rscmd_workers";
 pub const GLOBAL_LIMIT: &str = "_rscmd_limit";
 pub const GLOBAL_VERBOSE: &str = "_rscmd_verbose";
+pub const GLOBAL_TIMEOUT: &str = "_rscmd_timeout";
 
 /// CLI 全局参数（所有工具子命令共享）。
 #[derive(Debug, Clone, Default, Args, JsonSchema, Serialize)]
@@ -46,6 +47,10 @@ pub struct GlobalArgs {
     /// 在 stderr 输出工具名与耗时跟踪，不改变 stdout 契约
     #[arg(long = "verbose", short = 'v', global = true, id = GLOBAL_VERBOSE)]
     pub verbose: bool,
+
+    /// 单次调用的超时秒数，0 表示不限制；工具内的子进程与网络请求据此收敛
+    #[arg(long = "timeout", global = true, id = GLOBAL_TIMEOUT, value_name = "SECONDS", default_value_t = 0)]
+    pub timeout: u64,
 }
 
 /// 全局参数的 JSON Schema，供 `schema/global.json` 生成物使用。
@@ -75,6 +80,7 @@ mod tests {
         assert_eq!(cli.global.workers, 0);
         assert_eq!(cli.global.limit, 0);
         assert!(!cli.global.verbose);
+        assert_eq!(cli.global.timeout, 0);
     }
 
     #[test]
@@ -94,6 +100,22 @@ mod tests {
                 .verbose
         );
         assert!(Cli::try_parse_from(["x", "-v"]).unwrap().global.verbose);
+    }
+
+    #[test]
+    fn global_args_parses_timeout() {
+        assert_eq!(
+            Cli::try_parse_from(["x", "--timeout", "30"])
+                .unwrap()
+                .global
+                .timeout,
+            30
+        );
+        // 负值被当成未知参数；非数字走取值校验，两者都会转成用法错误。
+        let err = Cli::try_parse_from(["x", "--timeout", "-1"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::UnknownArgument);
+        let err = Cli::try_parse_from(["x", "--timeout=abc"]).unwrap_err();
+        assert_eq!(err.kind(), clap::error::ErrorKind::ValueValidation);
     }
 
     #[test]

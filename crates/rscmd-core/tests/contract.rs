@@ -75,6 +75,36 @@ static TOOLS: [ToolDef; 2] = [
     },
 ];
 
+static META_PROBE: ToolMeta = ToolMeta {
+    name: "probe",
+    aliases: &[],
+    summary: "回显运行上下文",
+    side_effects: SideEffects::None,
+    gui: false,
+    python: PythonExposure::Hidden,
+    examples: &["rscmd probe"],
+};
+
+fn build_probe() -> Command {
+    Command::new("probe")
+}
+
+fn run_probe(ctx: &mut ToolCtx, _matches: &ArgMatches) -> Result<Value, RscmdError> {
+    Ok(json!({
+        "timeout_ms": ctx.timeout.map(|value| value.as_millis()).unwrap_or(0),
+        "workers": ctx.workers,
+        "verbose": ctx.verbose,
+    }))
+}
+
+static PROBE_TOOLS: [ToolDef; 1] = [ToolDef {
+    meta: &META_PROBE,
+    build: build_probe,
+    run: run_probe,
+    run_json: None,
+    schema: None,
+}];
+
 fn argv(items: &[&str]) -> Vec<String> {
     items.iter().map(|item| item.to_string()).collect()
 }
@@ -431,6 +461,68 @@ fn dispatch_enables_verbose_anywhere() {
     assert!(dispatch(&TOOLS, &argv(&["--verbose", "version"])).verbose);
     assert!(dispatch(&TOOLS, &argv(&["version", "-v"])).verbose);
     assert!(!dispatch(&TOOLS, &argv(&["version"])).verbose);
+}
+
+#[test]
+fn dispatch_propagates_timeout_to_ctx() {
+    let out = dispatch(&PROBE_TOOLS, &argv(&["probe"]));
+    assert_eq!(out.exit_code(), 0);
+    assert_eq!(out.result.unwrap()["timeout_ms"], 0);
+
+    let out = dispatch(&PROBE_TOOLS, &argv(&["--timeout", "5", "probe"]));
+    assert_eq!(out.result.unwrap()["timeout_ms"], 5000);
+
+    // 全局参数放在子命令之后同样生效
+    let out = dispatch(&PROBE_TOOLS, &argv(&["probe", "--timeout", "3"]));
+    assert_eq!(out.result.unwrap()["timeout_ms"], 3000);
+
+    // run 嵌套入口也写入同一个 ctx
+    let out = dispatch(&PROBE_TOOLS, &argv(&["run", "probe", "--timeout", "2"]));
+    assert_eq!(out.result.unwrap()["timeout_ms"], 2000);
+}
+
+#[test]
+fn scan_flags_reads_raw_output_modes() {
+    assert_eq!(
+        rscmd_core::scan_flags(&argv(&["--json", "--quiet", "-v", "case"])),
+        rscmd_core::RawFlags {
+            json: true,
+            quiet: true,
+            verbose: true
+        }
+    );
+    assert_eq!(
+        rscmd_core::scan_flags(&argv(&["case"])),
+        rscmd_core::RawFlags::default()
+    );
+}
+
+#[test]
+fn interrupted_outcome_exits_130_and_keeps_envelope() {
+    let json_flags = rscmd_core::RawFlags {
+        json: true,
+        quiet: true,
+        verbose: true,
+    };
+    let outcome = Outcome::interrupted(&json_flags);
+    assert_eq!(outcome.exit_code(), 130);
+    // 中断信息必须可见，不能被 --quiet 吞掉，也不追加 verbose 跟踪。
+    assert!(!outcome.quiet);
+    assert!(!outcome.verbose);
+
+    let (stdout, stderr) = render(&outcome);
+    assert!(stdout.is_empty());
+    let envelope: Value = serde_json::from_str(stderr.trim()).unwrap();
+    assert_eq!(envelope["schema"], "rscmd-error/1");
+    assert_eq!(envelope["kind"], "interrupted");
+    assert_eq!(envelope["code"], "INTERRUPTED");
+    assert_eq!(envelope["exit_code"], 130);
+
+    let human = Outcome::interrupted(&rscmd_core::RawFlags::default());
+    let (stdout, stderr) = render(&human);
+    assert!(stdout.is_empty());
+    assert!(stderr.contains("错误[INTERRUPTED]"), "{stderr}");
+    assert!(stderr.contains("中断"), "{stderr}");
 }
 
 #[test]

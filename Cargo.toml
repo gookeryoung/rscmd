@@ -25,6 +25,7 @@ urlencoding = "2"
 schemars = { version = "0.9", features = ["derive"] }
 reqwest = { version = "0.12", default-features = false, features = ["blocking", "rustls-tls"] }
 sha2 = "0.10"
+ctrlc = "3"
 
 [profile.release]
 lto = "thin"

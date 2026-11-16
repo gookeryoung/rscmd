@@ -307,6 +307,41 @@ fn generate_global_args_doc() -> String {
     out
 }
 
+fn format_command(name: &str, aliases: &[&str]) -> String {
+    if aliases.is_empty() {
+        format!("`rscmd {name}`")
+    } else {
+        format!("`rscmd {name}({})`", aliases.join(", "))
+    }
+}
+
+fn generate_commands_doc() -> String {
+    let mut out = String::from(
+        "# 命令一览（自动生成，勿手改）\n\n\
+         本文件由 `cargo xtask gen-docs` 生成；短别名以括号标注，如 `rscmd doctor(d)`。\n\n\
+         ## 内建命令\n\n\
+         | 命令 | 说明 |\n\
+         |---|---|\n",
+    );
+    for builtin in rscmd_core::registry::BUILTINS {
+        out.push_str(&format!(
+            "| {} | {} |\n",
+            format_command(builtin.name, builtin.aliases),
+            builtin.about
+        ));
+    }
+
+    out.push_str("\n## 工具命令\n\n| 命令 | 说明 |\n|---|---|\n");
+    for tool in rscmd_tools::tools() {
+        out.push_str(&format!(
+            "| {} | {} |\n",
+            format_command(tool.meta.name, tool.meta.aliases),
+            tool.meta.summary.replace('|', "\\|")
+        ));
+    }
+    out
+}
+
 fn generate_tool_schemas_doc() -> String {
     let mut out = String::from(
         "# 工具参数 Schema 摘要（自动生成，勿手改）\n\n\
@@ -363,6 +398,7 @@ fn generate_readme() -> String {
         "# rscmd 文档索引（自动生成，勿手改）\n\n\
          本文件由 `cargo xtask gen-docs` 生成。\n\n\
          ## 文件列表\n\n\
+         - [commands.md](./commands.md) — 内建命令与工具命令一览（含短别名）\n\
          - [tools.md](./tools.md) — 全部工具元数据表格\n\
          - [global-args.md](./global-args.md) — CLI 全局参数说明\n\
          - [schemas.md](./schemas.md) — 各工具参数 Schema 摘要\n\n\
@@ -404,6 +440,7 @@ type DocGen = fn() -> String;
 fn docs_check(write: bool) -> Result<()> {
     let docs_dir = workspace_root().join("docs");
     let files: &[(&str, DocGen)] = &[
+        ("commands.md", generate_commands_doc),
         ("tools.md", generate_docs),
         ("global-args.md", generate_global_args_doc),
         ("schemas.md", generate_tool_schemas_doc),

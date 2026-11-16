@@ -4,6 +4,7 @@
 
 ## 文件列表
 
+- [commands.md](./commands.md) — 内建命令与工具命令一览（含短别名）
 - [tools.md](./tools.md) — 全部工具元数据表格
 - [global-args.md](./global-args.md) — CLI 全局参数说明
 - [schemas.md](./schemas.md) — 各工具参数 Schema 摘要

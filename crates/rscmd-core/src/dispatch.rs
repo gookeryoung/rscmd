@@ -11,11 +11,11 @@
 use clap::{Arg, ArgAction, Args, Command};
 use serde_json::{json, Value};
 
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::args::{
     GlobalArgs, GLOBAL_CONFIRM, GLOBAL_DRY_RUN, GLOBAL_JSON, GLOBAL_LIMIT, GLOBAL_QUIET,
-    GLOBAL_VERBOSE, GLOBAL_WORKERS,
+    GLOBAL_TIMEOUT, GLOBAL_VERBOSE, GLOBAL_WORKERS,
 };
 use crate::builtins;
 use crate::ctx::ToolCtx;
@@ -45,14 +45,45 @@ impl Outcome {
             Err(err) => err.exit_code(),
         }
     }
+
+    /// 用户按下 Ctrl+C 时的统一结果：`kind=interrupted`、退出码 130。
+    /// 只保留 stdout 契约相关的 `--json`/`--quiet` 判定，不输出 verbose 跟踪。
+    pub fn interrupted(flags: &RawFlags) -> Self {
+        Self {
+            tool: String::new(),
+            result: Err(RscmdError::coded("INTERRUPTED", "操作被用户中断（Ctrl+C）")),
+            json: flags.json,
+            quiet: false,
+            verbose: false,
+            elapsed_ms: 0,
+        }
+    }
+}
+
+/// 解析前的原始全局标记：解析失败或信号中断时也要知道输出模式。
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct RawFlags {
+    pub json: bool,
+    pub quiet: bool,
+    pub verbose: bool,
+}
+
+/// 从裸 argv 里粗判全局输出标记（`--json` / `--quiet` / `--verbose`）。
+pub fn scan_flags(argv: &[String]) -> RawFlags {
+    RawFlags {
+        json: argv.iter().any(|arg| arg == "--json"),
+        quiet: argv.iter().any(|arg| arg == "--quiet"),
+        verbose: argv.iter().any(|arg| arg == "--verbose" || arg == "-v"),
+    }
 }
 
 /// 解析并执行一次调用。`argv` 不包含程序名。
 pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
     let started = Instant::now();
-    let raw_json = argv.iter().any(|arg| arg == "--json");
-    let raw_quiet = argv.iter().any(|arg| arg == "--quiet");
-    let raw_verbose = argv.iter().any(|arg| arg == "--verbose" || arg == "-v");
+    let flags = scan_flags(argv);
+    let raw_json = flags.json;
+    let raw_quiet = flags.quiet;
+    let raw_verbose = flags.verbose;
     let root = root_command(tools);
     let mut full = Vec::with_capacity(argv.len() + 1);
     full.push("rscmd".to_string());
@@ -67,9 +98,10 @@ pub fn dispatch(tools: &'static [ToolDef], argv: &[String]) -> Outcome {
                 err.kind(),
                 clap::error::ErrorKind::DisplayHelp | clap::error::ErrorKind::DisplayVersion
             ) {
+                let text = parenthesize_aliases(&err.to_string());
                 return Outcome {
                     tool: String::new(),
-                    result: Ok(json!({ "text": err.to_string().trim_end() })),
+                    result: Ok(json!({ "text": text.trim_end() })),
                     json: raw_json,
                     quiet: raw_quiet,
                     verbose: raw_verbose,
@@ -104,53 +136,167 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
         .about("面向小模型调用的工具集")
         .after_help("示例:\n  rscmd run case --mode snake HelloWorld\n  rscmd doctor\n  rscmd version --json");
 
-    // 1. 平级一级命令：run / doctor / version / info（短别名 r/d/v/i）
-    let mut run = Command::new("run")
-        .alias("r")
-        .about("运行指定工具（推荐入口）");
+    // 1. 平级一级命令：run / tools / info / schema / version / doctor。
+    //    短别名由 registry::BUILTINS 统一提供，帮助中显示为 `doctor(d)`。
+    let mut run = builtin_command("run");
     for tool in tools {
-        let mut tool_cmd = (tool.build)();
-        for alias in tool.meta.aliases {
-            tool_cmd = tool_cmd.alias(*alias);
-        }
-        run = run.subcommand(tool_cmd);
+        run = run.subcommand(tool_command(tool));
     }
     root = root.subcommand(run);
 
     // 2. 兼容：工具直接注册在 root 下（保留直达形式 `rscmd case`）
     for tool in tools {
-        let mut tool_cmd = (tool.build)();
-        for alias in tool.meta.aliases {
-            tool_cmd = tool_cmd.alias(*alias);
-        }
-        root = root.subcommand(tool_cmd);
+        root = root.subcommand(tool_command(tool));
     }
 
     // 3. 其他平级命令
     root = root
         .subcommand(
-            Command::new("tools").about("列出可用工具").arg(
+            builtin_command("tools").arg(
                 Arg::new("for-llm")
                     .long("for-llm")
                     .action(ArgAction::SetTrue)
                     .help("过滤掉 GUI 工具，供模型编排直接消费"),
             ),
         )
-        .subcommand(
-            Command::new("info")
-                .alias("i")
-                .about("查看单个工具的元数据")
-                .arg(Arg::new("tool").required(true).value_name("TOOL")),
-        )
-        .subcommand(Command::new("schema").about("导出全部工具的元数据"))
-        .subcommand(Command::new("version").alias("v").about("输出版本信息"))
-        .subcommand(
-            Command::new("doctor")
-                .alias("d")
-                .about("输出运行环境自检信息"),
-        );
+        .subcommand(builtin_command("info").arg(Arg::new("tool").required(true).value_name("TOOL")))
+        .subcommand(builtin_command("schema"))
+        .subcommand(builtin_command("version"))
+        .subcommand(builtin_command("doctor"));
 
     root
+}
+
+/// 按 `registry::BUILTINS` 构造内建子命令，别名以可见形式注册。
+fn builtin_command(name: &str) -> Command {
+    let meta = crate::registry::BUILTINS
+        .iter()
+        .find(|builtin| builtin.name == name)
+        .unwrap_or_else(|| panic!("未登记的内建命令: {name}"));
+    let mut cmd = Command::new(meta.name).about(meta.about);
+    for alias in meta.aliases {
+        cmd = cmd.visible_alias(*alias);
+    }
+    cmd
+}
+
+/// 工具子命令；工具别名同样以可见形式注册，便于帮助中展示。
+fn tool_command(tool: &'static ToolDef) -> Command {
+    let mut cmd = (tool.build)();
+    for alias in tool.meta.aliases {
+        cmd = cmd.visible_alias(*alias);
+    }
+    cmd
+}
+
+/// clap 把别名渲染成 `doctor  说明 [alias: d]`（追加在说明末尾）；
+/// 这里按 `Commands:` 区块整体重排为 `doctor(d)  说明`，并重新对齐说明列。
+fn parenthesize_aliases(text: &str) -> String {
+    let lines: Vec<&str> = text.split('\n').collect();
+    let mut out: Vec<String> = Vec::with_capacity(lines.len());
+    let mut cursor = 0;
+
+    while cursor < lines.len() {
+        let line = lines[cursor];
+        out.push(line.to_string());
+        cursor += 1;
+        if line.trim() != "Commands:" {
+            continue;
+        }
+
+        // Commands 区块：命令行固定缩进 2 格，续行缩进更深，遇空行或非缩进行结束。
+        let start = cursor;
+        while cursor < lines.len()
+            && !lines[cursor].trim().is_empty()
+            && lines[cursor].starts_with("  ")
+        {
+            cursor += 1;
+        }
+        out.extend(render_command_block(&lines[start..cursor]));
+    }
+
+    out.join("\n")
+}
+
+struct CommandEntry {
+    name: String,
+    aliases: Vec<String>,
+    about: String,
+}
+
+impl CommandEntry {
+    fn display(&self) -> String {
+        if self.aliases.is_empty() {
+            self.name.clone()
+        } else {
+            format!("{}({})", self.name, self.aliases.join(", "))
+        }
+    }
+}
+
+fn render_command_block(lines: &[&str]) -> Vec<String> {
+    let mut entries: Vec<CommandEntry> = Vec::new();
+    for line in lines {
+        if let Some(raw) = line.strip_prefix("  ") {
+            if !raw.starts_with(' ') {
+                let (head, aliases) = split_alias(raw.trim_end());
+                let name_end = head.find(char::is_whitespace).unwrap_or(head.len());
+                entries.push(CommandEntry {
+                    name: head[..name_end].to_string(),
+                    aliases,
+                    about: head[name_end..].trim().to_string(),
+                });
+                continue;
+            }
+        }
+        // 说明换行后的续行，并入上一条命令。
+        if let Some(last) = entries.last_mut() {
+            if !last.about.is_empty() {
+                last.about.push(' ');
+            }
+            last.about.push_str(line.trim());
+        }
+    }
+
+    let width = entries
+        .iter()
+        .map(|entry| entry.display().chars().count())
+        .max()
+        .unwrap_or(0);
+    entries
+        .into_iter()
+        .map(|entry| {
+            let display = entry.display();
+            if entry.about.is_empty() {
+                format!("  {display}")
+            } else {
+                let pad = width.saturating_sub(display.chars().count()) + 2;
+                format!("  {display}{}{}", " ".repeat(pad), entry.about)
+            }
+        })
+        .collect()
+}
+
+/// 摘出 clap 追加在末尾的 `[alias: x]` / `[aliases: x, y]`。
+fn split_alias(text: &str) -> (String, Vec<String>) {
+    let Some(open) = text.find("[alias") else {
+        return (text.to_string(), Vec::new());
+    };
+    let Some(close) = text[open..].find(']').map(|offset| open + offset) else {
+        return (text.to_string(), Vec::new());
+    };
+    let Some(aliases) = text[open + 1..close]
+        .strip_prefix("alias: ")
+        .or_else(|| text[open + 1..close].strip_prefix("aliases: "))
+    else {
+        return (text.to_string(), Vec::new());
+    };
+
+    let cleaned = format!("{}{}", &text[..open], &text[close + 1..]);
+    (
+        cleaned.trim_end().to_string(),
+        aliases.split(", ").map(str::to_string).collect(),
+    )
 }
 
 fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: Instant) -> Outcome {
@@ -160,7 +306,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
             // rscmd 不带任何参数 → 输出完整帮助（正常输出，exit=0）。
             // 帮助文本经 Outcome 返回，保证 CLI / Python 绑定 / --json 行为一致。
             let mut cmd = root_command(tools);
-            let help = cmd.render_help().to_string();
+            let help = parenthesize_aliases(&cmd.render_help().to_string());
             return Outcome {
                 tool: String::new(),
                 result: Ok(json!({ "text": help })),
@@ -185,9 +331,16 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
     } else {
         Some(limit_raw)
     };
+    let timeout_secs = u64_in(matches, GLOBAL_TIMEOUT).max(u64_in(sub, GLOBAL_TIMEOUT));
+    let timeout = if timeout_secs == 0 {
+        None
+    } else {
+        Some(Duration::from_secs(timeout_secs))
+    };
 
     // 构造 ToolCtx（供后续工具 invoke 共用）
-    let mut ctx = ToolCtx::new(dry_run, confirm, quiet, limit, workers, verbose);
+    let mut ctx =
+        ToolCtx::new(dry_run, confirm, quiet, limit, workers, verbose).with_timeout(timeout);
 
     // run 嵌套入口：再取一层子命令拿到真正的工具
     if name == "run" {
@@ -303,4 +456,93 @@ fn usize_in(matches: &clap::ArgMatches, name: &str) -> usize {
         .flatten()
         .copied()
         .unwrap_or(0)
+}
+
+fn u64_in(matches: &clap::ArgMatches, name: &str) -> u64 {
+    matches
+        .try_get_one::<u64>(name)
+        .ok()
+        .flatten()
+        .copied()
+        .unwrap_or(0)
+}
+
+#[cfg(test)]
+mod alias_render_tests {
+    use super::*;
+
+    #[test]
+    fn alias_moves_next_to_name_and_realigns() {
+        let input = "Commands:\n  run       运行指定工具 [alias: r]\n  doctor    输出运行环境自检信息 [alias: d]\n  tools     列出可用工具\n\nOptions:\n";
+        let out = parenthesize_aliases(input);
+        assert!(out.contains("Commands:\n"), "{out}");
+        assert!(out.contains("run(r)"), "{out}");
+        assert!(out.contains("doctor(d)"), "{out}");
+        assert!(!out.contains("[alias"), "{out}");
+        // 说明列对齐：两条带别名的命令说明起始列一致。
+        let about_col = |command: &str, about: &str| {
+            out.lines()
+                .find(|line| line.contains(command))
+                .unwrap()
+                .find(about)
+                .unwrap()
+        };
+        assert_eq!(
+            about_col("run(r)", "运行指定工具"),
+            about_col("doctor(d)", "输出运行环境自检信息")
+        );
+    }
+
+    #[test]
+    fn multiple_aliases_are_comma_separated() {
+        let input = "Commands:\n  x    做某事 [aliases: a, b]\n";
+        let out = parenthesize_aliases(input);
+        assert!(out.contains("x(a, b)"), "{out}");
+    }
+
+    #[test]
+    fn wrapped_about_is_merged_into_one_line() {
+        let input = "Commands:\n  doctor    第一行说明 [alias: d]\n            第二行说明\n";
+        let out = parenthesize_aliases(input);
+        assert!(out.contains("doctor(d)  第一行说明 第二行说明"), "{out}");
+    }
+
+    #[test]
+    fn split_alias_ignores_malformed_specs() {
+        assert_eq!(
+            split_alias("no alias here"),
+            ("no alias here".to_string(), Vec::new())
+        );
+        // 缺少右括号。
+        assert_eq!(
+            split_alias("x 说明 [alias: d"),
+            ("x 说明 [alias: d".to_string(), Vec::new())
+        );
+        // 不是 alias 前缀。
+        assert_eq!(
+            split_alias("x 说明 [aliasx: d]"),
+            ("x 说明 [aliasx: d]".to_string(), Vec::new())
+        );
+        let (head, aliases) = split_alias("x 说明 [aliases: a, b]");
+        assert_eq!(head, "x 说明");
+        assert_eq!(aliases, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn command_without_about_gets_no_trailing_padding() {
+        let input = "Commands:\n  x\n";
+        assert_eq!(parenthesize_aliases(input), "Commands:\n  x\n");
+    }
+
+    #[test]
+    fn builtins_metadata_matches_reserved_names() {
+        let mut reserved = crate::registry::BUILTIN_COMMANDS.to_vec();
+        reserved.sort_unstable();
+        let mut declared: Vec<&str> = crate::registry::BUILTINS
+            .iter()
+            .map(|builtin| builtin.name)
+            .collect();
+        declared.sort_unstable();
+        assert_eq!(reserved, declared);
+    }
 }

@@ -13,3 +13,9 @@
   stdout 的人类可读文本与 JSON 信封保持原样。
 - `rscmd schema` 的输出改为 `rscmd-schema/1` 自描述对象：`version`、`tools`、`builtins`、`global`。
   （契约变更：此前 `data` 直接是工具元数据数组。）
+- 新增全局 `--timeout <SECONDS>`（0 表示不限制）：解析后写入 `ToolCtx.timeout`，工具内的
+  子进程（`rscmd_runtime::proc`）与网络请求（`rscmd_runtime::net`）通过 `ToolCtx::timeout_or`
+  统一取值；未设置时沿用工具自身的默认超时。
+- Ctrl+C 现在以退出码 130 结束：CLI 注册 SIGINT 处理，按当前输出模式渲染 `kind=interrupted`
+  的错误信封（`--json` 下为写 stderr 的 `rscmd-error/1`）。
+- `ERROR_CODE_KINDS` 登记 `TIMEOUT`（runtime，退出码 1）与 `INTERRUPTED`（interrupted，退出码 130）。

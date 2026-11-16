@@ -7,6 +7,47 @@ use crate::tool::{PythonExposure, ToolDef};
 /// 与工具同名的内建命令；工具不得占用（否则 clap 子命令重复注册）。
 pub const BUILTIN_COMMANDS: &[&str] = &["run", "tools", "info", "schema", "version", "doctor"];
 
+/// 内建命令的展示元数据：CLI 帮助与命令一览文档共用同一来源。
+pub struct Builtin {
+    pub name: &'static str,
+    pub aliases: &'static [&'static str],
+    pub about: &'static str,
+}
+
+/// 短别名会以 `doctor(d)` 的形式展示在帮助与文档中。
+pub const BUILTINS: &[Builtin] = &[
+    Builtin {
+        name: "run",
+        aliases: &["r"],
+        about: "运行指定工具（推荐入口）",
+    },
+    Builtin {
+        name: "tools",
+        aliases: &[],
+        about: "列出可用工具",
+    },
+    Builtin {
+        name: "info",
+        aliases: &["i"],
+        about: "查看单个工具的元数据",
+    },
+    Builtin {
+        name: "schema",
+        aliases: &[],
+        about: "导出全部工具的元数据",
+    },
+    Builtin {
+        name: "version",
+        aliases: &["v"],
+        about: "输出版本信息",
+    },
+    Builtin {
+        name: "doctor",
+        aliases: &["d"],
+        about: "输出运行环境自检信息",
+    },
+];
+
 pub struct Registry {
     tools: &'static [ToolDef],
 }

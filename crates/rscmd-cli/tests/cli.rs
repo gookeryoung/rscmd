@@ -69,6 +69,22 @@ fn global_flags_work_after_subcommand() {
 }
 
 #[test]
+fn timeout_flag_is_accepted_globally() {
+    let (code, stdout, stderr) = run(&["--timeout", "5", "case", "HelloWorld"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert_eq!(stdout, "hello_world\n");
+
+    let (code, _stdout, stderr) = run(&["case", "HelloWorld", "--timeout", "5"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+}
+
+#[test]
+fn negative_timeout_is_usage_error() {
+    let (code, _stdout, stderr) = run(&["--timeout", "-1", "case", "HelloWorld"]);
+    assert_eq!(code, 2, "stderr: {stderr}");
+}
+
+#[test]
 fn tools_lists_builtin_tools() {
     let (code, stdout, _stderr) = run(&["--json", "tools"]);
     assert_eq!(code, 0);
@@ -128,6 +144,27 @@ fn no_args_prints_help_and_lists_commands() {
     assert!(stdout.contains("Commands:"), "{stdout}");
     assert!(stdout.contains("doctor"), "{stdout}");
     assert!(stdout.contains("version"), "{stdout}");
+}
+
+#[test]
+fn help_shows_aliases_in_parentheses() {
+    let (code, stdout, _stderr) = run(&["--help"]);
+    assert_eq!(code, 0);
+    for expected in [
+        "run(r)",
+        "info(i)",
+        "version(v)",
+        "doctor(d)",
+        "case(casetool)",
+    ] {
+        assert!(stdout.contains(expected), "缺少 {expected}: {stdout}");
+    }
+    assert!(!stdout.contains("[alias"), "{stdout}");
+
+    let (code, stdout, _stderr) = run(&["run", "--help"]);
+    assert_eq!(code, 0);
+    assert!(stdout.contains("case(casetool)"), "{stdout}");
+    assert!(!stdout.contains("[alias"), "{stdout}");
 }
 
 #[test]

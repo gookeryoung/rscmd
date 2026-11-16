@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 rscmd-core = { workspace = true }
 rscmd-tools = { workspace = true }
+ctrlc = { workspace = true }
 
 [dev-dependencies]
 serde_json = { workspace = true }
