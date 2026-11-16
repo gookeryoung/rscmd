@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UrlcheckArgs",
+  "type": "object",
+  "properties": {
+    "max_redirects": {
+      "description": "最多跟随的重定向次数；0 表示不跟随",
+      "type": "integer",
+      "format": "uint32",
+      "default": 5,
+      "minimum": 0
+    },
+    "method": {
+      "description": "请求方法：head 或 get",
+      "type": "string",
+      "default": "head"
+    },
+    "url": {
+      "description": "待探测的 URL（仅支持 http:// 与 https://）",
+      "type": "string"
+    }
+  },
+  "required": [
+    "url"
+  ]
+}

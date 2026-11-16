@@ -27,7 +27,15 @@ def test_tools_contains_p0_tools() -> None:
         "stat",
         "csv",
         "timestamp",
+        "urlcheck",
     } <= names
+
+
+def test_invoke_urlcheck_rejects_unsupported_scheme() -> None:
+    with pytest.raises(rscmd.RscmdError) as info:
+        rscmd.invoke("urlcheck", {"url": "ftp://example.com"})
+    assert info.value.code == "UNSUPPORTED_SCHEME"
+    assert info.value.field == "url"
 
 
 def test_invoke_timestamp() -> None:

@@ -7,12 +7,13 @@ license.workspace = true
 publish.workspace = true
 
 [features]
-default = ["text", "data", "crypto", "system"]
+default = ["text", "data", "crypto", "system", "net"]
 text = ["dep:rscmd-tool-text"]
 data = ["dep:rscmd-tool-data"]
 crypto = ["dep:rscmd-tool-crypto"]
 system = ["dep:rscmd-tool-system"]
-all-tools = ["text", "data", "crypto", "system"]
+net = ["dep:rscmd-tool-net"]
+all-tools = ["text", "data", "crypto", "system", "net"]
 
 [dependencies]
 rscmd-core = { workspace = true }
@@ -20,3 +21,4 @@ rscmd-tool-text = { workspace = true, optional = true }
 rscmd-tool-data = { workspace = true, optional = true }
 rscmd-tool-crypto = { workspace = true, optional = true }
 rscmd-tool-system = { workspace = true, optional = true }
+rscmd-tool-net = { workspace = true, optional = true }

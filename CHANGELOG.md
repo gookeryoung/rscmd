@@ -94,6 +94,12 @@
   时区一律来自显式参数：不读系统时区、不做隐式本地转换，跨机器结果一致；非法输入、
   偏移与时长分别返回 `INVALID_ARGS`（field 为 `input`/`offset`/`add`）。
   依赖新增 `time` crate（v0.3，仅 `parsing` + `formatting` 两个 feature，无本地时区支持）。
+- 新增工具 `urlcheck`（net 域，别名 `urlchecktool`）：探测 URL 的 HTTP 状态码、重定向链与耗时。
+  `--method head|get`、`--max-redirects N`（0 表示不跟随），请求超时沿用全局 `--timeout`；
+  输出 `{url, method, final_url, status, ok, redirects, elapsed_ms, content_length}`。
+  4xx/5xx 视为探测完成（`ok=false`），只有传输层/超时/scheme 问题才返回
+  `NET_TIMEOUT` / `NET_TRANSPORT` / `UNSUPPORTED_SCHEME`。新增 `net` 工具域 crate
+  `rscmd-tool-net`（无新增第三方依赖，复用 runtime 的 reqwest）。
 
 ### 变更
 

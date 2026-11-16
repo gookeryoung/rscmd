@@ -31,3 +31,4 @@
 | `rscmd filesearch(filesearchtool)` | 按文件名 glob 与内容子串检索文件，支持 --limit 截断 |
 | `rscmd path(pathtool)` | 路径规范化、拼接、相对路径与绝对路径判定 |
 | `rscmd which(whichtool)` | 在 PATH 中查找可执行文件，返回绝对路径或 null |
+| `rscmd urlcheck(urlchecktool)` | 探测 URL 的 HTTP 状态码、重定向链与耗时（HEAD/GET） |

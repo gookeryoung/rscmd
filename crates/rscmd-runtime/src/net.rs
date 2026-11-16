@@ -218,6 +218,121 @@ fn http_download(
     Ok(bytes.to_vec())
 }
 
+/// URL 探测方法，只区分 HEAD 与 GET。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HttpMethod {
+    Head,
+    Get,
+}
+
+impl HttpMethod {
+    /// 稳定的文本标签，供结果信封使用。
+    pub fn as_str(self) -> &'static str {
+        match self {
+            HttpMethod::Head => "head",
+            HttpMethod::Get => "get",
+        }
+    }
+}
+
+/// 一次重定向跳转：`url` 返回 3xx，`location` 是解析后的下一跳绝对地址。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RedirectHop {
+    pub url: String,
+    pub status: u16,
+    pub location: String,
+}
+
+/// URL 探测结果。4xx/5xx 也属于探测成功，只看 `status`。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProbeResult {
+    pub final_url: String,
+    pub status: u16,
+    pub redirects: Vec<RedirectHop>,
+    pub content_length: Option<u64>,
+}
+
+/// 探测 URL 的状态码、重定向链与 Content-Length，不读取响应体。
+///
+/// - 仅支持 `http://` / `https://`；
+/// - 手动跟随重定向，最多 `max_redirects` 跳；超限时把当前 3xx 作为最终结果返回；
+/// - `Location` 无法解析成绝对 URL 时同样保留当前 3xx，不当成传输错误；
+/// - 4xx/5xx 不报错，交由调用方按 `status` 判断。
+pub fn probe(
+    url: &str,
+    method: HttpMethod,
+    timeout: Duration,
+    max_redirects: u32,
+) -> Result<ProbeResult, DownloadError> {
+    let lower = url.to_ascii_lowercase();
+    if !lower.starts_with("http://") && !lower.starts_with("https://") {
+        return Err(DownloadError::UnsupportedScheme(
+            "urlcheck 仅支持 http://、https://".to_string(),
+        ));
+    }
+    let client = reqwest::blocking::Client::builder()
+        .connect_timeout(timeout.min(Duration::from_secs(30)))
+        .timeout(timeout)
+        .user_agent(concat!("rscmd/", env!("CARGO_PKG_VERSION")))
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .map_err(DownloadError::Reqwest)?;
+
+    let mut current = url.to_string();
+    let mut redirects = Vec::new();
+    loop {
+        let resp = match method {
+            HttpMethod::Head => client.head(&current).send(),
+            HttpMethod::Get => client.get(&current).send(),
+        }
+        .map_err(DownloadError::Reqwest)?;
+        let status = resp.status();
+        if status.is_redirection() && redirects.len() < max_redirects as usize {
+            let next = resp
+                .headers()
+                .get(reqwest::header::LOCATION)
+                .and_then(|value| value.to_str().ok())
+                .and_then(|location| reqwest::Url::parse(&current).ok()?.join(location).ok());
+            match next {
+                Some(next) => {
+                    redirects.push(RedirectHop {
+                        url: current,
+                        status: status.as_u16(),
+                        location: next.to_string(),
+                    });
+                    current = next.to_string();
+                    continue;
+                }
+                None => {
+                    return Ok(ProbeResult {
+                        final_url: current,
+                        status: status.as_u16(),
+                        redirects,
+                        content_length: header_content_length(&resp),
+                    });
+                }
+            }
+        }
+        return Ok(ProbeResult {
+            final_url: current,
+            status: status.as_u16(),
+            redirects,
+            content_length: header_content_length(&resp),
+        });
+    }
+}
+
+/// 直接解析 Content-Length 头；HEAD 响应的 body 大小提示恒为 0，不能用它。
+fn header_content_length(resp: &reqwest::blocking::Response) -> Option<u64> {
+    resp.headers()
+        .get(reqwest::header::CONTENT_LENGTH)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse()
+        .ok()
+}
+
 /// 计算 data 的 SHA-256，返回小写 hex 字符串。
 pub fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
@@ -456,6 +571,93 @@ mod tests {
         assert_eq!(err.code(), "IO");
         assert!(err.to_string().contains("I/O 错误"));
         assert!(err.source().is_some());
+    }
+
+    #[test]
+    fn probe_head_reports_status_and_length() {
+        let (url, handle) =
+            serve_once(b"HTTP/1.1 200 OK\r\nContent-Length: 12\r\nConnection: close\r\n\r\n");
+        let result = probe(&url, HttpMethod::Head, Duration::from_secs(5), 5).unwrap();
+        assert_eq!(result.status, 200);
+        assert_eq!(result.final_url, url);
+        assert_eq!(result.content_length, Some(12));
+        assert!(result.redirects.is_empty());
+        let request = handle.join().unwrap();
+        assert!(request.starts_with("HEAD /data HTTP/1.1"), "{request}");
+    }
+
+    #[test]
+    fn probe_get_reports_error_status_without_failing() {
+        let (url, _handle) =
+            serve_once(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let result = probe(&url, HttpMethod::Get, Duration::from_secs(5), 0).unwrap();
+        assert_eq!(result.status, 404);
+        assert_eq!(result.content_length, Some(0));
+    }
+
+    #[test]
+    fn probe_follows_redirect_chain() {
+        let (url, handle) = serve_sequence(vec![
+            b"HTTP/1.1 302 Found\r\nLocation: /next\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nabc",
+        ]);
+        let result = probe(&url, HttpMethod::Head, Duration::from_secs(5), 5).unwrap();
+        assert_eq!(result.status, 200);
+        assert_eq!(result.redirects.len(), 1);
+        assert_eq!(result.redirects[0].status, 302);
+        assert_eq!(result.redirects[0].url, url);
+        assert!(result.redirects[0].location.ends_with("/next"));
+        assert!(result.final_url.ends_with("/next"));
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn probe_stops_at_redirect_limit() {
+        let (url, handle) = serve_sequence(vec![
+            b"HTTP/1.1 301 Moved Permanently\r\nLocation: /a\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            b"HTTP/1.1 301 Moved Permanently\r\nLocation: /b\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+        ]);
+        let result = probe(&url, HttpMethod::Head, Duration::from_secs(5), 1).unwrap();
+        assert_eq!(result.status, 301);
+        assert_eq!(result.redirects.len(), 1);
+        assert!(result.final_url.ends_with("/a"));
+        handle.join().unwrap();
+    }
+
+    #[test]
+    fn probe_keeps_redirect_without_location_as_final() {
+        let (url, _handle) =
+            serve_once(b"HTTP/1.1 302 Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let result = probe(&url, HttpMethod::Head, Duration::from_secs(5), 5).unwrap();
+        assert_eq!(result.status, 302);
+        assert!(result.redirects.is_empty());
+        assert_eq!(result.final_url, url);
+    }
+
+    #[test]
+    fn probe_rejects_bad_scheme() {
+        let err = probe(
+            "ftp://example.com",
+            HttpMethod::Head,
+            Duration::from_secs(1),
+            5,
+        )
+        .unwrap_err();
+        assert!(matches!(err, DownloadError::UnsupportedScheme(_)));
+        assert_eq!(err.code(), "UNSUPPORTED_SCHEME");
+    }
+
+    #[test]
+    fn probe_http_times_out() {
+        let (url, handle) = serve_slow(Duration::from_millis(600));
+        let started = std::time::Instant::now();
+        let err = probe(&url, HttpMethod::Get, Duration::from_millis(100), 5).unwrap_err();
+        assert_eq!(err.code(), "NET_TIMEOUT");
+        assert!(
+            started.elapsed() < Duration::from_millis(600),
+            "超时应在服务器回包前触发"
+        );
+        handle.join().unwrap();
     }
 
     #[test]

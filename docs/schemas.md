@@ -105,3 +105,11 @@
 |---|---|---|---|---|
 | `program` | string | `—` | ✅ | 要查找的程序名（可含相对或绝对路径） |
 
+## UrlcheckArgs
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `max_redirects` | integer | `5` | - | 最多跟随的重定向次数；0 表示不跟随 |
+| `method` | string | `"head"` | - | 请求方法：head 或 get |
+| `url` | string | `—` | ✅ | 待探测的 URL（仅支持 http:// 与 https://） |
+

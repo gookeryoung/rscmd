@@ -17,6 +17,8 @@ pub fn tools() -> &'static [ToolDef] {
         tools.extend_from_slice(rscmd_tool_crypto::tools());
         #[cfg(feature = "system")]
         tools.extend_from_slice(rscmd_tool_system::tools());
+        #[cfg(feature = "net")]
+        tools.extend_from_slice(rscmd_tool_net::tools());
         tools
     })
 }
@@ -49,6 +51,8 @@ mod tests {
         assert!(names.contains(&"filesearch"));
         #[cfg(feature = "system")]
         assert!(names.contains(&"which"));
+        #[cfg(feature = "net")]
+        assert!(names.contains(&"urlcheck"));
         assert!(!names.is_empty());
     }
 
