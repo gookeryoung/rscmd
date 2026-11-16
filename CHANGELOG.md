@@ -19,6 +19,8 @@
 - Ctrl+C 现在以退出码 130 结束：CLI 注册 SIGINT 处理，按当前输出模式渲染 `kind=interrupted`
   的错误信封（`--json` 下为写 stderr 的 `rscmd-error/1`）。
 - `ERROR_CODE_KINDS` 登记 `TIMEOUT`（runtime，退出码 1）与 `INTERRUPTED`（interrupted，退出码 130）。
+- 新增内建命令 `rscmd completion <SHELL>`：按完整命令树生成 bash / zsh / fish / powershell 补全脚本，
+  脚本原文走结果 `text` 字段（`--json` 下为 `rscmd-result/1` 信封）。
 
 ### 变更
 

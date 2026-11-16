@@ -526,6 +526,30 @@ fn interrupted_outcome_exits_130_and_keeps_envelope() {
 }
 
 #[test]
+fn completion_script_covers_every_shell() {
+    // 每种 shell 都要能生成脚本，且带上该 shell 的注册关键字。
+    for (shell, marker) in [
+        ("bash", "complete"),
+        ("zsh", "#compdef"),
+        ("fish", "complete -c rscmd"),
+        ("powershell", "Register-ArgumentCompleter"),
+    ] {
+        let out = dispatch(&TOOLS, &argv(&["completion", shell]));
+        assert_eq!(out.exit_code(), 0, "{shell} 应成功");
+        let text = out.result.unwrap()["text"].as_str().unwrap().to_string();
+        assert!(text.contains(marker), "{shell} 缺少 {marker}: {text}");
+        assert!(text.contains("rscmd"), "{shell} 缺少命令名: {text}");
+    }
+}
+
+#[test]
+fn completion_rejects_unknown_shell() {
+    let out = dispatch(&TOOLS, &argv(&["completion", "tcsh"]));
+    assert_eq!(out.exit_code(), 2);
+    assert_eq!(out.result.unwrap_err().code, "USAGE");
+}
+
+#[test]
 fn dispatch_builtins() {
     let out = dispatch(&TOOLS, &argv(&["tools"]));
     assert_eq!(out.result.unwrap().as_array().unwrap().len(), 2);

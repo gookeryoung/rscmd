@@ -16,6 +16,7 @@ rscmd-tools = { path = "crates/rscmd-tools" }
 rscmd-tool-text = { path = "crates/rscmd-tool-text" }
 rscmd-tool-data = { path = "crates/rscmd-tool-data" }
 clap = { version = "4", features = ["derive"] }
+clap_complete = "4"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pyo3 = { version = "0.24", features = ["extension-module", "abi3-py310"] }

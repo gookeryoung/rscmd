@@ -162,7 +162,16 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
         .subcommand(builtin_command("info").arg(Arg::new("tool").required(true).value_name("TOOL")))
         .subcommand(builtin_command("schema"))
         .subcommand(builtin_command("version"))
-        .subcommand(builtin_command("doctor"));
+        .subcommand(builtin_command("doctor"))
+        .subcommand(
+            builtin_command("completion").arg(
+                Arg::new("shell")
+                    .required(true)
+                    .value_name("SHELL")
+                    .value_parser(clap::value_parser!(clap_complete::Shell))
+                    .help("目标 shell：bash / zsh / fish / powershell"),
+            ),
+        );
 
     root
 }
@@ -385,6 +394,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
             }
         }
         "schema" => Ok(schema_data(tools)),
+        "completion" => Ok(completion_data(tools, sub)),
         "version" => Ok(builtins::version_data()),
         "doctor" => Ok(builtins::doctor_data(
             tools,
@@ -401,6 +411,18 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
         verbose,
         elapsed_ms: started.elapsed().as_millis(),
     }
+}
+
+/// `rscmd completion <SHELL>`：按完整命令树生成补全脚本，脚本原文放在 `text` 字段。
+fn completion_data(tools: &'static [ToolDef], sub: &clap::ArgMatches) -> Value {
+    let shell = sub
+        .get_one::<clap_complete::Shell>("shell")
+        .copied()
+        .unwrap_or(clap_complete::Shell::Bash);
+    let mut cmd = root_command(tools);
+    let mut buf: Vec<u8> = Vec::new();
+    clap_complete::generate(shell, &mut cmd, "rscmd", &mut buf);
+    json!({ "text": String::from_utf8_lossy(&buf) })
 }
 
 fn invoke_tool(

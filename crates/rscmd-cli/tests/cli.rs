@@ -138,6 +138,25 @@ fn dash_help_exits_zero() {
 }
 
 #[test]
+fn completion_generates_scripts() {
+    let (code, stdout, stderr) = run(&["completion", "bash"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    assert!(stdout.contains("complete"), "{stdout}");
+    assert!(stdout.contains("rscmd"), "{stdout}");
+
+    let (code, stdout, stderr) = run(&["--json", "completion", "zsh"]);
+    assert_eq!(code, 0, "stderr: {stderr}");
+    let envelope = parse_json(&stdout);
+    assert!(envelope["data"]["text"]
+        .as_str()
+        .unwrap()
+        .contains("#compdef"));
+
+    let (code, _stdout, stderr) = run(&["completion", "tcsh"]);
+    assert_eq!(code, 2, "stderr: {stderr}");
+}
+
+#[test]
 fn no_args_prints_help_and_lists_commands() {
     let (code, stdout, stderr) = run(&[]);
     assert_eq!(code, 0, "stderr: {stderr}");

@@ -12,6 +12,7 @@
 | `rscmd schema` | 导出全部工具的元数据 |
 | `rscmd version(v)` | 输出版本信息 |
 | `rscmd doctor(d)` | 输出运行环境自检信息 |
+| `rscmd completion` | 生成 shell 补全脚本（bash/zsh/fish/powershell） |
 
 ## 工具命令
 

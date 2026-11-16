@@ -5,7 +5,15 @@ use std::collections::HashSet;
 use crate::tool::{PythonExposure, ToolDef};
 
 /// 与工具同名的内建命令；工具不得占用（否则 clap 子命令重复注册）。
-pub const BUILTIN_COMMANDS: &[&str] = &["run", "tools", "info", "schema", "version", "doctor"];
+pub const BUILTIN_COMMANDS: &[&str] = &[
+    "run",
+    "tools",
+    "info",
+    "schema",
+    "version",
+    "doctor",
+    "completion",
+];
 
 /// 内建命令的展示元数据：CLI 帮助与命令一览文档共用同一来源。
 pub struct Builtin {
@@ -45,6 +53,11 @@ pub const BUILTINS: &[Builtin] = &[
         name: "doctor",
         aliases: &["d"],
         about: "输出运行环境自检信息",
+    },
+    Builtin {
+        name: "completion",
+        aliases: &[],
+        about: "生成 shell 补全脚本（bash/zsh/fish/powershell）",
     },
 ];
 
