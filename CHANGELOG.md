@@ -60,8 +60,16 @@
   release 二进制由 1,613,312 字节增至 3,115,520 字节，+1,502,208 字节 ≈ +1.43 MiB）。
 - `ERROR_CODE_KINDS` 登记 `INVALID_REGEX`（invalid_input，退出码 3），用于非法表达式与
   超出 `--size-limit` 的编译失败。
+- 新增工具 `path`（system 域，别名 `pathtool`）：`normalize` / `join` / `relative --base` /
+  `is-abs` 子命令，输出统一使用 `/` 分隔，绝对路径判定与宿主平台无关；
+  `cfg(windows)` 下 `relative` 按大小写不敏感比较。
+- 新增 `rscmd-tool-system` 工具域，`rscmd-tools` 增加 `system` feature（默认启用）。
 
 ### 变更
+
+- `rscmd-runtime::fs::normalize_path` 保留绝对路径根（此前会丢掉开头的 `/`，如
+  `/a/../b` 得到 `a/b`），并保留 UNC 的 `//` 前缀；新增 `fs::is_absolute_path`。
+  非 breaking：此前无调用方，纯字符串语义不变。
 
 - 断点续传遇到 4xx/5xx 时按 HTTP 状态码报错（此前一律报「不支持 Range」）；
   2xx 但非 206 仍报 `RANGE_NOT_SUPPORTED`。

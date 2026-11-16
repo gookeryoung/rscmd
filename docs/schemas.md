@@ -53,3 +53,12 @@
 | `mode` | string | `"base64"` | - | 编解码方式：base64/hex/url |
 | `text` | string | `—` | ✅ | 待编码或解码的文本 |
 
+## PathInput
+
+| 参数 | 类型 | 默认 | 必填 | 说明 |
+|---|---|---|---|---|
+| `base` | — | `null` | - | relative 的基准路径 |
+| `op` | string | `—` | ✅ | 操作：normalize/join/relative/is-abs |
+| `parts` | array | `[]` | - | join 的路径片段 |
+| `path` | — | `null` | - | 待处理的路径（normalize/relative/is-abs） |
+

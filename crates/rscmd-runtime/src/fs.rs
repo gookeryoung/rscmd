@@ -151,18 +151,20 @@ impl Drop for TempDir {
 ///
 /// 跨平台语义：输入既可以是 `a\b\..\c` 也可以是 `a/b/../c`，输出统一为正斜杠。
 pub fn normalize_path(path: &Path) -> PathBuf {
-    let as_str = path.to_string_lossy();
-    let mut parts: Vec<String> = as_str
-        .replace('\\', "/")
-        .split('/')
-        .filter(|seg| !seg.is_empty())
-        .map(String::from)
-        .collect();
+    let raw = path.to_string_lossy().replace('\\', "/");
+    // `//server/share` 是 Windows UNC 前缀，需要保留两个斜杠。
+    let prefix = if raw.starts_with("//") {
+        "//"
+    } else if raw.starts_with('/') {
+        "/"
+    } else {
+        ""
+    };
 
     let mut stack: Vec<String> = Vec::new();
     let mut leading_dots: Vec<String> = Vec::new();
-    for seg in parts.drain(..) {
-        match seg.as_str() {
+    for seg in raw.split('/').filter(|seg| !seg.is_empty()) {
+        match seg {
             "." => {}
             ".." => {
                 if let Some(top) = stack.last() {
@@ -171,17 +173,29 @@ pub fn normalize_path(path: &Path) -> PathBuf {
                     } else {
                         stack.pop();
                     }
-                } else {
+                } else if prefix.is_empty() {
                     leading_dots.push("..".to_string());
                 }
+                // 绝对路径上 `..` 越过根目录时保持根不变。
             }
-            _ => {
-                stack.push(seg);
-            }
+            _ => stack.push(seg.to_string()),
         }
     }
     leading_dots.extend_from_slice(&stack);
-    PathBuf::from(leading_dots.join("/"))
+    PathBuf::from(format!("{prefix}{}", leading_dots.join("/")))
+}
+
+/// 按纯字符串语义判断绝对路径，与宿主平台无关：
+/// - 以 `/` 或 `\` 开头（Unix 根、UNC、Windows 根相对）视为绝对；
+/// - 形如 `C:` / `C:/x` / `C:\x` 的盘符前缀视为绝对。
+///
+/// 这样同一输入在 Windows 与 Unix 上得到一致结论，便于跨平台工具复用。
+pub fn is_absolute_path(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    if matches!(bytes.first(), Some(b'/') | Some(b'\\')) {
+        return true;
+    }
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 /// 轻量文本文件判断：
@@ -302,6 +316,33 @@ mod tests {
         );
         assert_eq!(normalize_path(Path::new("../a")), Path::new("../a"));
         assert_eq!(normalize_path(Path::new("a/../..")), Path::new(".."));
+    }
+
+    #[test]
+    fn normalize_path_keeps_absolute_root() {
+        assert_eq!(normalize_path(Path::new("/a/../b")), Path::new("/b"));
+        assert_eq!(normalize_path(Path::new("/")), Path::new("/"));
+        assert_eq!(
+            normalize_path(Path::new("//server/share/../x")),
+            Path::new("//server/x")
+        );
+        assert_eq!(normalize_path(Path::new("C:/a/../b")), Path::new("C:/b"));
+    }
+
+    #[test]
+    fn normalize_path_unifies_separators() {
+        assert_eq!(normalize_path(Path::new("a\\b\\..\\c")), Path::new("a/c"));
+        assert_eq!(normalize_path(Path::new("a//b///c")), Path::new("a/b/c"));
+    }
+
+    #[test]
+    fn absolute_detection_is_platform_independent() {
+        for path in ["/a", "\\a", "C:/a", "c:\\a", "C:"] {
+            assert!(is_absolute_path(path), "{path} 应判为绝对路径");
+        }
+        for path in ["", "a/b", "C", "1:/a"] {
+            assert!(!is_absolute_path(path), "{path} 应判为相对路径");
+        }
     }
 
     #[test]

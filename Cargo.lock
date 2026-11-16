@@ -1152,6 +1152,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "rscmd-tool-system"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "rscmd-core",
+ "rscmd-runtime",
+ "schemars",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "rscmd-tool-text"
 version = "0.1.0"
 dependencies = [
@@ -1171,6 +1183,7 @@ dependencies = [
  "rscmd-core",
  "rscmd-tool-crypto",
  "rscmd-tool-data",
+ "rscmd-tool-system",
  "rscmd-tool-text",
 ]
 

@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PathInput",
+  "type": "object",
+  "properties": {
+    "base": {
+      "description": "relative 的基准路径",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "op": {
+      "description": "操作：normalize/join/relative/is-abs",
+      "type": "string"
+    },
+    "parts": {
+      "description": "join 的路径片段",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
+    "path": {
+      "description": "待处理的路径（normalize/relative/is-abs）",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "op"
+  ]
+}

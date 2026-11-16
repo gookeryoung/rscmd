@@ -15,6 +15,8 @@ pub fn tools() -> &'static [ToolDef] {
         tools.extend_from_slice(rscmd_tool_data::tools());
         #[cfg(feature = "crypto")]
         tools.extend_from_slice(rscmd_tool_crypto::tools());
+        #[cfg(feature = "system")]
+        tools.extend_from_slice(rscmd_tool_system::tools());
         tools
     })
 }
@@ -35,6 +37,8 @@ mod tests {
         assert!(names.contains(&"json_fmt"));
         #[cfg(feature = "crypto")]
         assert!(names.contains(&"hash"));
+        #[cfg(feature = "system")]
+        assert!(names.contains(&"path"));
         assert!(!names.is_empty());
     }
 

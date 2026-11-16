@@ -16,6 +16,7 @@ rscmd-tools = { path = "crates/rscmd-tools" }
 rscmd-tool-text = { path = "crates/rscmd-tool-text" }
 rscmd-tool-data = { path = "crates/rscmd-tool-data" }
 rscmd-tool-crypto = { path = "crates/rscmd-tool-crypto" }
+rscmd-tool-system = { path = "crates/rscmd-tool-system" }
 clap = { version = "4", features = ["derive"] }
 clap_complete = "4"
 serde = { version = "1", features = ["derive"] }
