@@ -13,6 +13,8 @@
 
 ```bash
 cargo xtask check-fast        # fmt + clippy + registry + arch + docs + schema + py-fresh + deny + machete
+cargo xtask py-type-check     # mypy 检查 python/rscmd 与 tests/py（未装 mypy 时跳过）
+cargo xtask wheel-smoke       # 构建 wheel、安装进 .venv 并冒烟
 cargo xtask bench             # 启动时间基准回归
 cargo xtask release-preflight # 发布前全量预检
 ```
@@ -28,6 +30,10 @@ uv tool install --editable .
 ```
 
 `cargo xtask py-fresh-check` 会在 `_native.*` 旧于 Rust 源码时失败并提示重建；本地未构建时跳过。
+
+类型检查选 mypy（纯 Python 实现，`pip install mypy` 即可，CI 不需要额外运行时），
+配置在 `pyproject.toml` 的 `[tool.mypy]`，原生边界由 `python/rscmd/_native.pyi` 声明。
+CI 的 `python` job 跑 mypy 与 pytest，`wheel-smoke` job 在三平台构建 wheel 并冒烟。
 
 ## 当前状态
 

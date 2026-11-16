@@ -23,3 +23,10 @@ manifest-path = "crates/rscmd-py/Cargo.toml"
 module-name   = "rscmd._native"
 python-source = "python"
 strip         = true
+
+# 类型检查只覆盖 Python 侧的薄封装与测试；原生产物由 _native.pyi 声明边界。
+[tool.mypy]
+files          = [ "python/rscmd", "tests/py" ]
+python_version = "3.10"
+strict         = true
+

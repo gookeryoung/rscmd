@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json as _json
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, NoReturn, Sequence
 
 from . import _native
 
@@ -33,7 +33,7 @@ class RscmdError(Exception):
         super().__init__(payload.get("message") or "rscmd error")
 
 
-def _raise_native(error: BaseException) -> None:
+def _raise_native(error: BaseException) -> NoReturn:
     try:
         payload = _json.loads(str(error))
     except Exception:  # noqa: BLE001 - 保底：原生错误不是 JSON 时仍可读

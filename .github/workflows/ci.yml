@@ -44,6 +44,31 @@ jobs:
         with:
           python-version: "3.12"
       - run: python -m venv .venv
-      - run: .venv/bin/pip install --upgrade pip maturin pytest
+      - run: .venv/bin/pip install --upgrade pip maturin pytest mypy
       - run: .venv/bin/maturin develop
+      - run: .venv/bin/python -m mypy
       - run: .venv/bin/python -m pytest tests/py -q
+
+  # 三平台 wheel 冒烟：构建真实发布形态的 wheel，装进 .venv 后验证导入、成功调用与错误映射。
+  # 只做测试，不产出或发布任何构件。
+  wheel-smoke:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            python: ./.venv/bin/python
+          - os: windows-latest
+            python: ./.venv/Scripts/python.exe
+          - os: macos-latest
+            python: ./.venv/bin/python
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m venv .venv
+      - run: ${{ matrix.python }} -m pip install --upgrade pip maturin
+      - run: cargo run -q -p xtask -- wheel-smoke

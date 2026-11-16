@@ -23,6 +23,7 @@ fn main() {
         "check" => check(),
         "check-cov" => check_cov(),
         "py-fresh-check" => py_fresh_check(),
+        "py-type-check" => py_type_check(),
         "wheel-smoke" => wheel_smoke(),
         "bench" => bench(),
         "release-preflight" => release_preflight(),
@@ -52,9 +53,10 @@ fn print_help() {
          \x20 schema-check    校验 schema/*.json 是否为最新生成物\n\
          \x20 gen-schema      重新生成 schema/*.json\n\
          \x20 check-fast      fmt + clippy + registry-check + arch-check + docs-check + schema-check\n\
-         \x20 check           check-fast + 测试 + Python 测试（若存在 .venv）\n\
+         \x20 check           check-fast + 测试 + Python 测试与类型检查（若存在 .venv）\n\
          \x20 check-cov       运行 cargo llvm-cov（需已安装）\n\
          \x20 py-fresh-check  校验 python/rscmd/_native.* 是否旧于 Rust 源码\n\
+         \x20 py-type-check   用 mypy 检查 python/rscmd 与 tests/py（未安装则跳过）\n\
          \x20 wheel-smoke     构建 wheel 并安装到 .venv 做导入与调用冒烟\n\
          \x20 bench           构建 release 并跑启动时间基准回归\n\
          \x20 version-check   校验 tag / Cargo / wheel 版本一致（tag 取 RSCMD_RELEASE_TAG 或 GITHUB_REF_NAME）\n\
@@ -481,6 +483,8 @@ fn generate_readme() -> String {
          ## 快速校验\n\n\
          ```bash\n\
          cargo xtask check-fast        # fmt + clippy + registry + arch + docs + schema + py-fresh + deny + machete\n\
+         cargo xtask py-type-check     # mypy 检查 python/rscmd 与 tests/py（未装 mypy 时跳过）\n\
+         cargo xtask wheel-smoke       # 构建 wheel、安装进 .venv 并冒烟\n\
          cargo xtask bench             # 启动时间基准回归\n\
          cargo xtask release-preflight # 发布前全量预检\n\
          ```\n\n\
@@ -492,6 +496,9 @@ fn generate_readme() -> String {
          uv tool install --editable .\n\
          ```\n\n\
          `cargo xtask py-fresh-check` 会在 `_native.*` 旧于 Rust 源码时失败并提示重建；本地未构建时跳过。\n\n\
+         类型检查选 mypy（纯 Python 实现，`pip install mypy` 即可，CI 不需要额外运行时），\n\
+         配置在 `pyproject.toml` 的 `[tool.mypy]`，原生边界由 `python/rscmd/_native.pyi` 声明。\n\
+         CI 的 `python` job 跑 mypy 与 pytest，`wheel-smoke` job 在三平台构建 wheel 并冒烟。\n\n\
          ## 当前状态\n\n\
          - 工具数量：**{tool_count}**\n\
          - Schema 文件：`schema/` 下 {} 个 `.json`\n",
@@ -709,6 +716,7 @@ fn check() -> Result<()> {
         run_cargo(&["test", "--workspace"])?;
     }
     py_check()?;
+    py_type_check()?;
     println!("check 通过");
     Ok(())
 }
@@ -886,6 +894,36 @@ fn py_check() -> Result<()> {
         Ok(())
     } else {
         Err(format!("Python 测试失败，退出码 {:?}", status.code()))
+    }
+}
+
+/// Python 侧类型检查：配置见 `pyproject.toml` 的 `[tool.mypy]`。
+/// mypy 属测试工具，本地未安装时跳过；CI 的 python job 显式安装并执行。
+fn py_type_check() -> Result<()> {
+    let root = workspace_root();
+    let Some(python) = venv_python(&root) else {
+        println!("跳过 Python 类型检查：未发现 .venv（可用 uv venv .venv 创建）");
+        return Ok(());
+    };
+    let probe = Command::new(&python)
+        .args(["-m", "mypy", "--version"])
+        .output();
+    if !matches!(probe, Ok(ref output) if output.status.success()) {
+        println!("跳过 Python 类型检查：.venv 中未安装 mypy（uv pip install mypy）");
+        return Ok(());
+    }
+
+    println!("$ {} -m mypy", python.display());
+    let status = Command::new(&python)
+        .args(["-m", "mypy"])
+        .current_dir(&root)
+        .status()
+        .map_err(|err| format!("执行 mypy 失败: {err}"))?;
+    if status.success() {
+        println!("py-type-check 通过");
+        Ok(())
+    } else {
+        Err(format!("Python 类型检查失败，退出码 {:?}", status.code()))
     }
 }
 
