@@ -352,6 +352,9 @@ mod tests {
                 loop {
                     match listener.accept() {
                         Ok((mut stream, _)) => {
+                            // Windows 上 accept 出的套接字会继承监听端的非阻塞标志，
+                            // 必须显式改回阻塞，否则读/写可能立刻 WouldBlock，导致回包被截断。
+                            let _ = stream.set_nonblocking(false);
                             let mut buf = [0u8; 4096];
                             let _ = stream.read(&mut buf);
                             let _ = stream.write_all(response);
