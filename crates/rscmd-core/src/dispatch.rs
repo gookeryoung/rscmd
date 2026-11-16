@@ -162,7 +162,7 @@ fn root_command(tools: &'static [ToolDef]) -> Command {
     // 3. 其他平级命令
     root = root
         .subcommand(
-            builtin_command("tools").arg(
+            builtin_command("list").arg(
                 Arg::new("for-llm")
                     .long("for-llm")
                     .action(ArgAction::SetTrue)
@@ -421,7 +421,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
     }
 
     let result = match name {
-        "tools" => list_tools(tools, sub.get_flag("for-llm")),
+        "list" => list_tools(tools, sub.get_flag("for-llm")),
         "info" => {
             let wanted = sub
                 .get_one::<String>("tool")
@@ -431,7 +431,7 @@ fn run_matches(tools: &'static [ToolDef], matches: &clap::ArgMatches, started: I
                 Some(tool) => Ok(meta_json(tool)),
                 None => Err(
                     RscmdError::coded("TOOL_NOT_FOUND", format!("未知工具: {wanted}"))
-                        .with_hint("使用 `rscmd tools` 查看可用工具"),
+                        .with_hint("使用 `rscmd list` 查看可用工具"),
                 ),
             }
         }
@@ -506,7 +506,7 @@ pub fn schema_data(tools: &'static [ToolDef]) -> Value {
     })
 }
 
-/// `rscmd tools` 的 `data`：版本信封 + 工具元数据列表（每项含 `aliases` 与 `side_effects`）。
+/// `rscmd list` 的 `data`：版本信封 + 工具元数据列表（每项含 `aliases` 与 `side_effects`）。
 fn list_tools(tools: &'static [ToolDef], for_llm: bool) -> Result<Value, RscmdError> {
     let items: Vec<Value> = tools
         .iter()

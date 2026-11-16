@@ -169,6 +169,10 @@
 
 ### 变更
 
+- **契约变更（breaking）**：内建命令 `rscmd tools` 更名为 `rscmd list`（短别名 `l`），
+  `tools` 不再保留为别名；`data` 结构（`rscmd-tools/1`）与 `--for-llm` 参数不变。
+  `rscmd run` 不删除：它是唯一稳定的「统一入口」，生成的提示词与外部脚本依赖它，
+  直达形式（`rscmd case ...`）只是便利写法。
 - `rscmd-runtime::fs::normalize_path` 保留绝对路径根（此前会丢掉开头的 `/`，如
   `/a/../b` 得到 `a/b`），并保留 UNC 的 `//` 前缀；新增 `fs::is_absolute_path`。
   非 breaking：此前无调用方，纯字符串语义不变。

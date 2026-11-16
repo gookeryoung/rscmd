@@ -8,7 +8,7 @@
 | 命令 | 说明 |
 |---|---|
 | `rscmd run(r)` | 运行指定工具（推荐入口） |
-| `rscmd tools` | 列出可用工具 |
+| `rscmd list(l)` | 列出可用工具 |
 | `rscmd info(i)` | 查看单个工具的元数据 |
 | `rscmd schema` | 导出全部工具的元数据 |
 | `rscmd version(v)` | 输出版本信息 |

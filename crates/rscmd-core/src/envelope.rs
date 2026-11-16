@@ -8,7 +8,7 @@ pub const RESULT_SCHEMA: &str = "rscmd-result/1";
 pub const ERROR_SCHEMA: &str = "rscmd-error/1";
 /// `rscmd schema` 自描述输出的契约版本。
 pub const SCHEMA_CONTRACT: &str = "rscmd-schema/1";
-/// `rscmd tools` 的版本信封，位于结果信封的 `data` 内层。
+/// `rscmd list` 的版本信封，位于结果信封的 `data` 内层。
 pub const TOOLS_CONTRACT: &str = "rscmd-tools/1";
 
 pub fn success(tool: &str, data: Value) -> Value {

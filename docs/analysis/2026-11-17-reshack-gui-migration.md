@@ -35,7 +35,7 @@ CLI `reshack` 已迁移并提交（`3f81858`），为 GUI 提供了可直接复�
 1. fcmd `reshackw.py` 为 38,973 字节的 Tk 窗口，依赖 `tkinter/ttk`、`Pillow`（可选）、`threading`、`fcmd.gui.{config,theme,window}`。
 2. fcmd GUI 共享骨架：`config.py`（设置 JSON、`.bak`、原子写）、`window.py`（DPI 感知、geometry 夹紧、80 ms worker 轮询、日志）、`theme.py`（45,102 字节主题体系）。
 3. rscmd 当前**没有任何 GUI / 图像 / 剪贴板依赖**：workspace 依赖清单与 `Cargo.lock` 中不存在 `eframe`、`egui`、`image`、`rfd`、`arboard`、`encoding_rs`。
-4. `ToolMeta.gui` 已存在，但**只有元数据消费方**：`tools --for-llm` 过滤 GUI 工具、MCP 只暴露非 GUI 且有 `run_json` 的工具；没有运行时读取该字段。
+4. `ToolMeta.gui` 已存在，但**只有元数据消费方**：`list --for-llm` 过滤 GUI 工具、MCP 只暴露非 GUI 且有 `run_json` 的工具；没有运行时读取该字段。
 5. `reshack` 的内部类型与函数全部是私有项：`PeImage`、`load`、`resource_data`、`export_payload`、`bitmap_to_bmp`、`icon_to_ico` 等；公开面只有 `META`、`ReshackInput`、`build/run_cli/run_json/def`。
 6. CLI 的 `list` 只返回元数据与头部信息，**不返回资源原始字节**；`extract` 通过写文件交付数据。GUI 预览不能只靠现有 JSON 契约。
 7. 设置目录能力已具备：`rscmd_runtime::home::Dirs::resolve`（`RSCMD_HOME` > 平台默认）、`state_dir()`；原子写 `rscmd_runtime::fs::atomic_write` 已存在。
@@ -240,7 +240,7 @@ impl PeFile {
 1. **是否迁移 GUI**：方案 E（不迁移，保留 CLI）仍是合法选项；若迁移，是否接受方案 A（egui）作为主路线。
 2. **技术路线**：A egui / B Win32 原生 / C Python tkinter 兜底 / E 不迁移。推荐 A，理由是业务复用与单二进制；若更看重原生观感选 B，若只看重最快对齐 fcmd 选 C。
 3. **依赖审批**：`eframe`、`image`、`rfd`、`arboard`（以及可能的中文编码 crate）。需明确允许新增，或限定「仅 Windows 目标」。
-4. **GUI 入口形态：已定（2026-11-17）**：保留独立二进制 `rscmd-reshackw` 承载 GUI，另注册 `ToolDef { name: "reshackw", gui: true, python: Hidden }`（落点 `crates/rscmd-tool-system/src/reshackw.rs`）用 `rscmd reshackw [FILE]` 定位并拉起。定位顺序 `RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；找不到返回 `GUI_UNAVAILABLE`（退出码 1）并提示 `cargo build -p rscmd-gui --features gui`。`run_json` 为 `None`，MCP 与 `tools --for-llm` 不暴露；schema 保留以满足 `gen-schema` 的全工具覆盖要求。
+4. **GUI 入口形态：已定（2026-11-17）**：保留独立二进制 `rscmd-reshackw` 承载 GUI，另注册 `ToolDef { name: "reshackw", gui: true, python: Hidden }`（落点 `crates/rscmd-tool-system/src/reshackw.rs`）用 `rscmd reshackw [FILE]` 定位并拉起。定位顺序 `RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；找不到返回 `GUI_UNAVAILABLE`（退出码 1）并提示 `cargo build -p rscmd-gui --features gui`。`run_json` 为 `None`，MCP 与 `list --for-llm` 不暴露；schema 保留以满足 `gen-schema` 的全工具覆盖要求。
 5. **覆盖率口径**：GUI 壳层（`app.rs`/`view/`）是否排除出 llvm-cov；若排除，必须在 xtask 中写明文件与理由，且 `preview.rs`/`settings.rs` 仍须单测。
 6. **设置兼容**：是否一次性导入 fcmd 的 `~/.fcmd/ui/reshackw.json`，还是完全使用 `RSCMD_HOME/state/gui/reshackw.json`。
 
@@ -357,5 +357,5 @@ POC self-test: OK
 
 - 未实现文件对话框（`rfd`）、PE 资源树、文本/十六进制页签、导出/替换；POC 只验证技术可行性。
 - GBK 解码未引入；TTC 字体仅按候选顺序回退，实测使用 `simhei.ttf`（9,745,792 字节）。
-- GUI 入口已能由 `rscmd reshackw [FILE]` 拉起（拉起的是同目录 `rscmd-reshackw`），MCP 与 `tools --for-llm` 仍不暴露该 GUI 工具；但 GUI 本体仍是 POC，只能预览图片、不能直接打开 PE 资源树。
+- GUI 入口已能由 `rscmd reshackw [FILE]` 拉起（拉起的是同目录 `rscmd-reshackw`），MCP 与 `list --for-llm` 仍不暴露该 GUI 工具；但 GUI 本体仍是 POC，只能预览图片、不能直接打开 PE 资源树。
 - 阶段 1 第一件事：把 `reshack.rs` 的 `PeImage` 提升为公开 `PeFile` API，并接入 `rfd` 打开对话框。

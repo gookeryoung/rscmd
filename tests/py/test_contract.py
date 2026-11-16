@@ -206,8 +206,8 @@ def test_run_argv_run_short_alias() -> None:
 
 
 def test_run_argv_tools_returns_version_envelope() -> None:
-    """`rscmd tools` 的 data 是 rscmd-tools/1 信封，不再是裸数组（breaking 变更）。"""
-    envelope = rscmd.run_argv(["tools"])
+    """`rscmd list` 的 data 是 rscmd-tools/1 信封，不再是裸数组（breaking 变更）。"""
+    envelope = rscmd.run_argv(["list"])
     data = envelope["data"]
     assert data["schema"] == "rscmd-tools/1"
     assert data["version"] == rscmd.__version__

@@ -7,7 +7,7 @@ use crate::tool::{PythonExposure, ToolDef};
 /// 与工具同名的内建命令；工具不得占用（否则 clap 子命令重复注册）。
 pub const BUILTIN_COMMANDS: &[&str] = &[
     "run",
-    "tools",
+    "list",
     "info",
     "schema",
     "version",
@@ -31,8 +31,8 @@ pub const BUILTINS: &[Builtin] = &[
         about: "运行指定工具（推荐入口）",
     },
     Builtin {
-        name: "tools",
-        aliases: &[],
+        name: "list",
+        aliases: &["l"],
         about: "列出可用工具",
     },
     Builtin {

@@ -53,7 +53,7 @@ Rust 侧改动后必须重新执行 `maturin develop`，否则 `_native` 会静�
 
 ```bash
 rscmd doctor(d)                                  # 环境自检
-rscmd tools                                      # 列出工具
+rscmd list                                       # 列出工具（别名 l）
 rscmd run(r) case --mode snake HelloWorld        # 推荐入口：run + 工具名
 rscmd case HelloWorld                            # 直达形式（等价）
 rscmd --json run case --mode snake HelloWorld    # 机读信封
@@ -88,7 +88,7 @@ $ rscmd --json run json_fmt '{'
 | 命令 | 说明 |
 |---|---|
 | `rscmd run(r) <工具> [参数]` | 运行指定工具（推荐入口） |
-| `rscmd tools` | 列出可用工具（`--for-llm` 过滤 GUI 工具） |
+| `rscmd list(l)` | 列出可用工具（`--for-llm` 过滤 GUI 工具） |
 | `rscmd info(i) <工具>` | 查看单个工具的元数据 |
 | `rscmd schema` | 导出全部工具的元数据与参数 Schema |
 | `rscmd version(v)` | 输出版本信息 |
@@ -154,7 +154,7 @@ RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # 显式指定二进制
 
 定位顺序：`RSCMD_RESHACKW` → 与 `rscmd` 同目录的 `rscmd-reshackw[.exe]`；
 找不到时返回 `GUI_UNAVAILABLE`（退出码 1）并提示构建命令。
-该工具标记为 `gui: true`：`tools --for-llm` 与 MCP 不会暴露它，Python 侧为 `hidden`。
+该工具标记为 `gui: true`：`list --for-llm` 与 MCP 不会暴露它，Python 侧为 `hidden`。
 
 ## 输出契约
 
@@ -162,7 +162,7 @@ RSCMD_RESHACKW=/path/to/rscmd-reshackw rscmd reshackw   # 显式指定二进制
 - 失败：`{"schema":"rscmd-error/1","ok":false,"tool":"<工具>","kind":"...","code":"...","message":"...","exit_code":<码>}`
   - 可选字段：`field` / `expected` / `hint`
 - `rscmd doctor(d)` 结论不通过时输出 `ok:false` 的结果信封并退出 5
-- `rscmd tools` 的 `data` 为 `{"schema":"rscmd-tools/1","version":"...","tools":[...]}`
+- `rscmd list` 的 `data` 为 `{"schema":"rscmd-tools/1","version":"...","tools":[...]}`
 - `rscmd schema` 的 `data` 为 `rscmd-schema/1`，含 `version` / `tools` / `builtins` / `global`
 - 成功结果写 stdout，错误写 stderr；`--verbose` 只写 stderr
 

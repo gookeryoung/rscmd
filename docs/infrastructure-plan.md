@@ -54,7 +54,7 @@ rscmd 在「统一入口、信封、退出码、schema 投影、fs/net 运行时
 ### 2.4 参数与 schema 投影
 
 - **fcmd**：`core/toolkit/args.py` 从 `@fx.tool` 函数签名生成 argparse 参数与 `param_schema()`；`cli/_schema.py` 汇总工具元数据、子命令 schema、GUI 标记，形成 `fcmd-schema/1` 与 `fcmd info --json` 契约。
-- **rscmd**：clap derive 生成 CLI，schemars 生成 JSON Schema；`schema/{meta,global,case,wc,json_fmt}.json` 为生成物，`gen-schema`/`schema-check` 保证与代码一致；`rscmd tools/info/schema` 提供机读元数据，`tools --for-llm` 支持过滤。
+- **rscmd**：clap derive 生成 CLI，schemars 生成 JSON Schema；`schema/{meta,global,case,wc,json_fmt}.json` 为生成物，`gen-schema`/`schema-check` 保证与代码一致；`rscmd list/info/schema` 提供机读元数据，`list --for-llm` 支持过滤。
 - **差距**：rscmd 的 schema 能力更强（编译期类型、生成物校验），但 `rscmd schema` 直接返回工具元数据数组，没有版本化信封，也未包含内建命令与全局参数；fcmd 有 `fcmd-schema/1` 包装。另外 rscmd 目前没有 schema 文档之外的契约说明。
 - **结论**：**P1 把 schema 输出包装为 `rscmd-schema/1`**（含 tools/builtins/global），同步重生成 `docs/schemas.md`；不引入 fcmd 的签名反射。
 

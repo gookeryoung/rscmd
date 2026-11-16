@@ -86,7 +86,7 @@ fn negative_timeout_is_usage_error() {
 
 #[test]
 fn tools_lists_builtin_tools() {
-    let (code, stdout, _stderr) = run(&["--json", "tools"]);
+    let (code, stdout, _stderr) = run(&["--json", "list"]);
     assert_eq!(code, 0);
     let envelope = parse_json(&stdout);
     // `data` 是版本信封（rscmd-tools/1），不再是裸数组。

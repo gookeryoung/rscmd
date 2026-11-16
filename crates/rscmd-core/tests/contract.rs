@@ -176,7 +176,7 @@ fn registry_reports_all_problems() {
     };
     static BAD: ToolMeta = ToolMeta {
         name: "Bad Name",
-        aliases: &["", "tools"],
+        aliases: &["", "listalias"],
         summary: "x",
         side_effects: SideEffects::None,
         gui: false,
@@ -580,7 +580,7 @@ fn completion_rejects_unknown_shell() {
 
 #[test]
 fn dispatch_builtins() {
-    let data = dispatch(&TOOLS, &argv(&["tools"])).result.unwrap();
+    let data = dispatch(&TOOLS, &argv(&["list"])).result.unwrap();
     assert_eq!(data["schema"], "rscmd-tools/1");
     assert_eq!(data["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(data["tools"].as_array().unwrap().len(), 2);
@@ -588,7 +588,7 @@ fn dispatch_builtins() {
     assert_eq!(data["tools"][0]["aliases"], json!(["a"]));
     assert_eq!(data["tools"][0]["side_effects"], "none");
 
-    let data = dispatch(&TOOLS, &argv(&["tools", "--for-llm"]))
+    let data = dispatch(&TOOLS, &argv(&["list", "--for-llm"]))
         .result
         .unwrap();
     let items = data["tools"].as_array().unwrap();
@@ -629,7 +629,7 @@ fn dispatch_builtins() {
 
 #[test]
 fn tools_envelope_is_versioned_and_breaks_array_consumers() {
-    let data = dispatch(&TOOLS, &argv(&["tools"])).result.unwrap();
+    let data = dispatch(&TOOLS, &argv(&["list"])).result.unwrap();
     // 新消费方式：先认版本，再从 `tools` 取列表。
     assert_eq!(data["schema"], "rscmd-tools/1");
     assert!(data["tools"].is_array());

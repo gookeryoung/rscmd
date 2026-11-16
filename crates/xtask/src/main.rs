@@ -595,7 +595,7 @@ fn generate_tool_schemas_doc() -> String {
          本文件由 `cargo xtask gen-docs` 生成；完整 schema 见 `schema/*.json`。\n\n\
          需要机器可读的全量自描述时，运行 `rscmd schema --json`：\n\
          `data` 为 `rscmd-schema/1` 对象，含 `version`、`tools`、`builtins`、`global` 四个字段。\n\n\
-         只列工具时运行 `rscmd tools --json`：`data` 为 `rscmd-tools/1` 对象，含 `version` 与 `tools`，\n\
+         只列工具时运行 `rscmd list --json`：`data` 为 `rscmd-tools/1` 对象，含 `version` 与 `tools`，\n\
          每个条目与 `schema.tools` 同源（含 `aliases` 与 `side_effects`）。\n\n",
     );
     for tool in rscmd_tools::tools() {
