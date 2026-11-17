@@ -1174,7 +1174,7 @@ fn wheel_smoke() -> Result<()> {
     let script = "import rscmd\n\
                   assert rscmd.__version__ == '__EXPECTED_VERSION__', rscmd.__version__\n\
                   assert rscmd.invoke('case', {'text': 'HelloWorld', 'mode': 'snake'})['text'] == 'hello_world'\n\
-                  assert rscmd.run_argv(['tools'])['data']['schema'] == 'rscmd-tools/1'\n\
+                  assert rscmd.run_argv(['list'])['data']['schema'] == 'rscmd-tools/1'\n\
                   try:\n\
                   \x20   rscmd.invoke('json_fmt', {'json': '{'})\n\
                   except rscmd.RscmdError as err:\n\
